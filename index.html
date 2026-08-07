@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2563eb">
+<title>老张胡辣汤 工具箱 · 导航</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --card:#fff; --ink:#1f2329; --sub:#8a9099;
+    --line:#eceef1; --accent:#2563eb;
+    --fear:#0ea5e9; --greed:#f59e0b; --neutral:#8a9099;
+    --up:#e0392b; --down:#1ba784;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{
+    margin:0 auto;max-width:860px;min-height:100dvh;padding:32px 16px 60px;
+    background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
+    line-height:1.6;
+  }
+  .header{text-align:center;margin-bottom:24px}
+  .header h1{font-size:22px;margin:0 0 6px;font-weight:800;letter-spacing:.02em}
+  .header p{font-size:13px;color:var(--sub);margin:0}
+
+  /* ===== 今日要点区 ===== */
+  .today{margin-bottom:28px}
+  .today-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .today-title{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px}
+  .today-title::before{content:"";width:4px;height:16px;border-radius:2px;background:var(--accent)}
+  .today-date{font-size:12px;color:var(--sub)}
+
+  .today-grid{display:grid;grid-template-columns:1fr 1.35fr;gap:14px}
+  @media(max-width:640px){.today-grid{grid-template-columns:1fr}}
+
+  .t-card{background:var(--card);border-radius:16px;padding:18px;border:1px solid var(--line);
+    box-shadow:0 1px 3px rgba(0,0,0,.05)}
+
+  /* 小旭恐惧指数卡 */
+  .xxfi-top{display:flex;align-items:baseline;gap:10px;margin-bottom:6px}
+  .xxfi-num{font-size:40px;font-weight:800;line-height:1}
+  .xxfi-badge{font-size:12px;font-weight:700;color:#fff;border-radius:999px;padding:3px 10px}
+  .b-buy{background:var(--down)} .b-acc{background:#3aa0ff}
+  .b-hold{background:var(--neutral)} .b-red{background:var(--greed)} .b-sell{background:var(--up)}
+  .xxfi-label{font-size:12px;color:var(--sub);margin-bottom:14px}
+  .gauge{height:8px;background:var(--line);border-radius:4px;position:relative;margin-bottom:10px}
+  .gauge-fill{position:absolute;left:0;top:0;bottom:0;border-radius:4px;transition:width .6s ease}
+  .gauge-scale{display:flex;justify-content:space-between;font-size:10px;color:var(--sub);margin-bottom:8px}
+  .xxfi-advice{font-size:12px;color:var(--sub);border-top:1px solid var(--line);padding-top:10px}
+
+  /* VIX 迷你区块（填充小旭卡留白） */
+  .vix-wrap{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+  .vix-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .vix-label{font-size:12px;font-weight:700;display:flex;align-items:center;gap:5px}
+  .vix-label small{color:var(--sub);font-weight:400}
+  .vix-num{font-size:20px;font-weight:800;line-height:1}
+  .vix-chg{font-size:12px;font-weight:700;margin-left:6px}
+  .vix-tag{font-size:10px;color:#fff;border-radius:6px;padding:2px 7px;margin-left:8px}
+  .vix-scale{display:flex;justify-content:space-between;font-size:10px;color:var(--sub);margin-bottom:4px}
+  .vix-bar{height:6px;background:var(--line);border-radius:3px;position:relative}
+  .vix-bar i{position:absolute;top:-3px;width:3px;height:12px;background:var(--ink);border-radius:2px;transition:left .6s ease}
+  .vix-hint{font-size:11px;color:var(--sub);margin-top:6px}
+
+  /* 秋哥卡 */
+  .qg-top{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}
+  .qg-idx{font-size:22px;font-weight:800}
+  .qg-chg{font-size:14px;font-weight:700}
+  .up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--sub)}
+  .qg-levels{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .lvl{font-size:11px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:3px 8px;color:var(--sub)}
+  .lvl b{color:var(--ink)}
+  .qg-sec{margin-bottom:10px}
+  .qg-sec-name{font-size:12px;font-weight:700;margin-bottom:6px}
+  .qg-sec-name small{color:var(--sub);font-weight:400}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{font-size:11px;border-radius:8px;padding:3px 9px;background:var(--bg);border:1px solid var(--line)}
+  .chip.pick{background:#eef7ff;border-color:#bcd9f5;color:#185fa5}
+  .chip.watch{background:#f0fdf4;border-color:#bae6c4;color:#3b6d11}
+  .chip.avoid{background:#fef2f2;border-color:#f5c2c2;color:#a32d2d}
+  .qg-picks-detail{margin-bottom:10px}
+  .qg-pick-row{display:flex;align-items:center;justify-content:space-between;font-size:12px;
+    background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:7px 10px;margin-bottom:6px}
+  .qg-pick-row .nm{font-weight:600}
+  .qg-pick-row .act{color:#185fa5;font-size:11px}
+  .qg-pick-row .pos{color:var(--sub);font-size:11px}
+
+  .outlook{margin-top:14px;background:linear-gradient(90deg,#fdf8ef,#faf5e8);border:1px solid #f0e4c8;
+    border-radius:12px;padding:12px 14px;font-size:12px;color:#633806}
+  .outlook b{display:block;font-size:12px;margin-bottom:4px}
+
+  /* 加载失败占位 */
+  .err-box{font-size:12px;color:var(--sub);padding:20px;text-align:center}
+
+  /* ===== 导航卡片 ===== */
+  .nav-title{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;margin-bottom:12px}
+  .nav-title::before{content:"";width:4px;height:16px;border-radius:2px;background:var(--accent)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
+  .card{
+    display:block;position:relative;text-decoration:none;color:var(--ink);
+    background:var(--card);border-radius:16px;padding:18px 16px;
+    border:1px solid var(--line);
+    box-shadow:0 1px 3px rgba(0,0,0,.05);
+    transition:transform .15s ease,box-shadow .15s ease;
+    overflow:hidden;
+  }
+  .card:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(0,0,0,.09)}
+  .card::before{content:"";position:absolute;top:0;left:0;right:0;height:4px;background:var(--accent)}
+  .card .ico{font-size:26px;line-height:1;margin-bottom:10px}
+  .card h2{font-size:15px;margin:0 0 4px;font-weight:700}
+  .card .desc{font-size:12px;color:var(--sub);margin:0 0 8px}
+  .card .url{font-size:11px;color:var(--accent);word-break:break-all}
+  .foot{color:var(--sub);font-size:11px;text-align:center;margin-top:28px}
+  .loading{color:var(--sub);font-size:12px;padding:8px 0}
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1>🏠 老张胡辣汤 工具箱</h1>
+    <p>今日要点 · 板块导航</p>
+  </div>
+
+  <!-- 今日要点 -->
+  <section class="today">
+    <div class="today-head">
+      <div class="today-title">今日要点</div>
+      <div class="today-date" id="todayDate">加载中…</div>
+    </div>
+    <div class="today-grid">
+      <!-- 小旭恐惧指数 -->
+      <div class="t-card">
+        <div class="xxfi-top">
+          <span class="xxfi-num" id="xxfiNum">--</span>
+          <span class="xxfi-badge b-hold" id="xxfiBadge">加载中</span>
+        </div>
+        <div class="xxfi-label">小旭恐惧指数 XXFI · 反向情绪指标</div>
+        <div class="gauge-scale"><span>极度恐惧</span><span>中性</span><span>极度贪婪</span></div>
+        <div class="gauge"><div class="gauge-fill" id="xxfiGauge" style="width:50%;background:var(--neutral)"></div></div>
+        <div class="xxfi-advice" id="xxfiAdvice">加载中…</div>
+        <!-- VIX 恐慌指数 -->
+        <div class="vix-wrap">
+          <div class="vix-top">
+            <div class="vix-label">VIX 恐慌指数 <small>· 美股</small></div>
+            <div>
+              <span class="vix-num" id="vixNum">--</span>
+              <span class="vix-chg" id="vixChg">--</span>
+              <span class="vix-tag" id="vixTag" style="background:var(--neutral)">加载中</span>
+            </div>
+          </div>
+          <div class="vix-scale"><span>极低</span><span>正常</span><span>恐慌</span><span>极度恐慌</span></div>
+          <div class="vix-bar" id="vixBar"><i style="left:50%"></i></div>
+          <div class="vix-hint" id="vixHint">VIX ≥30 恐慌 · ≥40 极度恐慌 · ≤12 极低贪婪</div>
+        </div>
+      </div>
+
+      <!-- 秋哥操作 -->
+      <div class="t-card">
+        <div class="qg-top">
+          <span class="qg-idx" id="qgIdx">--</span>
+          <span class="qg-chg" id="qgChg">--</span>
+        </div>
+        <div class="qg-levels" id="qgLevels"></div>
+        <div class="qg-picks-detail" id="qgPicks"></div>
+        <div class="qg-sec">
+          <div class="qg-sec-name">观望 <small>watch</small></div>
+          <div class="chips" id="qgWatch"></div>
+        </div>
+        <div class="qg-sec">
+          <div class="qg-sec-name">回避 <small>avoid</small></div>
+          <div class="chips" id="qgAvoid"></div>
+        </div>
+      </div>
+    </div>
+    <div class="outlook" id="qgOutlook" style="display:none">
+      <b>💬 秋哥一句话</b>
+      <span id="qgOutlookText"></span>
+    </div>
+  </section>
+
+  <!-- 板块导航 -->
+  <div class="nav-title">板块导航</div>
+  <div class="grid">
+    <a class="card" href="https://portfolio.hellohopo.dpdns.org/" style="--accent:#2563eb">
+      <div class="ico">📈</div>
+      <h2>全球金融市场日报</h2>
+      <p class="desc">A/港/美/全球指数、商品、汇率 · 每日更新</p>
+      <p class="url">portfolio.hellohopo.dpdns.org</p>
+    </a>
+    <a class="card" href="https://market-live.hellohopo.dpdns.org/" style="--accent:#0ea5e9">
+      <div class="ico">📊</div>
+      <h2>实时市场看板</h2>
+      <p class="desc">XXFI 恐惧指数 · A股冰点 · 实时行情</p>
+      <p class="url">market-live.hellohopo.dpdns.org</p>
+    </a>
+    <a class="card" href="https://xiaoxu-fear.hellohopo.dpdns.org/" style="--accent:#6366f1">
+      <div class="ico">🧊</div>
+      <h2>小旭恐惧指数</h2>
+      <p class="desc">XXFI 反向情绪指标 · 恐慌/贪婪判断</p>
+      <p class="url">xiaoxu-fear.hellohopo.dpdns.org</p>
+    </a>
+    <a class="card" href="https://cmb-tracker.hellohopo.dpdns.org/" style="--accent:#e6a23c">
+      <div class="ico">🏦</div>
+      <h2>招招五维 · 银行追踪</h2>
+      <p class="desc">五大行五维评分 · 价值投资追踪</p>
+      <p class="url">cmb-tracker.hellohopo.dpdns.org</p>
+    </a>
+  </div>
+
+  <div class="foot">老张胡辣汤 工具箱 · 2026 · 仅供研究，非投资建议</div>
+
+<script>
+const XXFI_URL = 'https://raw.githubusercontent.com/homjanon/xiaoxu-fear/main/output/xxfi_report.json';
+const QG_URL   = 'https://raw.githubusercontent.com/homjanon/xiaoxu-fear/main/output/qiuge_report.json';
+const ML_URL   = 'https://market-live.hellohopo.dpdns.org/api/data';
+const VIX_API  = 'https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX?interval=1d&range=2d';
+const VIX_PROXIES = [
+  'https://api.allorigins.win/raw?url=',
+  'https://corsproxy.io/?',
+  'https://api.codetabs.com/v1/proxy?quest='
+];
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+async function loadXXFI(){
+  try{
+    const r = await fetch(XXFI_URL,{cache:'no-store'});
+    const d = await r.json();
+    const v = Number(d.XXFI);
+    document.getElementById('xxfiNum').textContent = v.toFixed(1);
+    const badge = document.getElementById('xxfiBadge');
+    const sig = (d.contrarian_signal||'HOLD').toUpperCase();
+    badge.textContent = sig;
+    badge.className = 'xxfi-badge ' + ({BUY:'b-buy',ACCUMULATE:'b-acc',HOLD:'b-hold',REDUCE:'b-red',SELL:'b-sell'}[sig]||'b-hold');
+    const gauge = document.getElementById('xxfiGauge');
+    gauge.style.width = Math.max(0,Math.min(100,v)) + '%';
+    gauge.style.background = v>=75?'var(--down)':v>=60?'#3aa0ff':v>=40?'var(--neutral)':v>=25?'var(--greed)':'var(--up)';
+    document.getElementById('xxfiAdvice').textContent = (d.level||'') + '。' + (d.advice||'').split('。')[0] + '。';
+    return d;
+  }catch(e){
+    document.getElementById('xxfiAdvice').textContent = '小旭恐惧指数加载失败';
+    return null;
+  }
+}
+
+async function loadQG(){
+  try{
+    const r = await fetch(QG_URL,{cache:'no-store'});
+    const d = await r.json();
+    const idx = d.index||{};
+    document.getElementById('qgIdx').textContent = (idx.name||'上证指数') + ' ' + (idx.close!=null?idx.close:'--');
+    const chg = document.getElementById('qgChg');
+    const c = idx.change_pct;
+    if(c!=null){
+      chg.textContent = (c>0?'+':'') + Number(c).toFixed(2) + '%';
+      chg.className = 'qg-chg ' + (c>0?'up':c<0?'down':'flat');
+    }
+    const lv = d.levels||{};
+    let lh = '';
+    if(lv.support!=null) lh += '<span class="lvl">支撑 <b>'+lv.support+'</b></span>';
+    if(lv.pressure!=null) lh += '<span class="lvl">压力 <b>'+lv.pressure+'</b></span>';
+    if(lv.strong_support!=null) lh += '<span class="lvl">强支撑 <b>'+lv.strong_support+'</b></span>';
+    if(d.position_max!=null) lh += '<span class="lvl">仓位上限 <b>'+d.position_max+'</b></span>';
+    document.getElementById('qgLevels').innerHTML = lh;
+    const pd = d.picks_detail||[];
+    let ph = '';
+    if(pd.length){
+      ph += '<div class="qg-sec"><div class="qg-sec-name">精选标的 <small>picks</small></div>';
+      ph += pd.map(p=>'<div class="qg-pick-row"><span class="nm">'+esc(p.name)+'</span><span class="act">'+esc(p.action||'')+'</span><span class="pos">'+esc(p.position||'')+'</span></div>').join('');
+      ph += '</div>';
+    }else if((d.picks_name||[]).length){
+      ph += '<div class="qg-sec"><div class="qg-sec-name">精选标的 <small>picks</small></div><div class="chips">'+
+        d.picks_name.map(n=>'<span class="chip pick">'+esc(n)+'</span>').join('')+'</div></div>';
+    }
+    document.getElementById('qgPicks').innerHTML = ph;
+    const w = d.watch||[];
+    document.getElementById('qgWatch').innerHTML = w.length?w.map(x=>'<span class="chip watch">'+esc(x)+'</span>').join(''):'<span class="chip">—</span>';
+    const a = d.avoid||[];
+    document.getElementById('qgAvoid').innerHTML = a.length?a.map(x=>'<span class="chip avoid">'+esc(x)+'</span>').join(''):'<span class="chip">—</span>';
+    if(d.outlook){
+      document.getElementById('qgOutlook').style.display='block';
+      document.getElementById('qgOutlookText').textContent = d.outlook;
+    }
+    return d;
+  }catch(e){
+    document.getElementById('qgPicks').innerHTML = '<div class="err-box">秋哥操作加载失败</div>';
+    return null;
+  }
+}
+
+function setDate(){
+  const now = new Date(Date.now()+8*3600*1000);
+  const s = now.toISOString().slice(0,10);
+  document.getElementById('todayDate').textContent = s;
+}
+
+function renderVIX(p, chg, extra){
+  document.getElementById('vixNum').textContent = p.toFixed(2);
+  const chgEl = document.getElementById('vixChg');
+  if(chg != null){
+    chgEl.textContent = (chg>0?'+':'') + chg.toFixed(2) + '%';
+    chgEl.className = 'vix-chg ' + (chg>0?'up':'down');
+  }
+  const tag = document.getElementById('vixTag');
+  let tText, tBg, tLeft;
+  if(p >= 40){ tText='极度恐慌'; tBg='var(--up)'; tLeft=92; }
+  else if(p >= 30){ tText='恐慌'; tBg='#d85a30'; tLeft=75; }
+  else if(p >= 25){ tText='偏恐慌'; tBg='#e6a23c'; tLeft=62; }
+  else if(p >= 20){ tText='偏高'; tBg='#e6a23c'; tLeft=50; }
+  else if(p >= 15){ tText='正常'; tBg='var(--neutral)'; tLeft=38; }
+  else if(p >= 12){ tText='偏低'; tBg='#3aa0ff'; tLeft=25; }
+  else { tText='极低贪婪'; tBg='var(--down)'; tLeft=8; }
+  tag.textContent = tText; tag.style.background = tBg;
+  const marker = document.getElementById('vixBar').querySelector('i');
+  marker.style.left = 'calc(' + tLeft + '% - 1.5px)';
+  document.getElementById('vixHint').textContent = 'VIX ' + p.toFixed(2) + ' · ' + tText + (extra ? '　|　' + extra : '');
+}
+
+async function loadVIX(){
+  // 方案1: market-live /api/data（若未来加了 CORS 头则最优；当前可能被浏览器拦截）
+  try{
+    const r = await fetch(ML_URL, {cache:'no-store'});
+    if(r.ok){
+      const d = await r.json();
+      const vix = d?.us_fear?.vix;
+      if(vix && vix.price != null){
+        const p = Number(vix.price);
+        const pp = vix.prev_close;
+        const chg = pp ? (p-pp)/pp*100 : null;
+        const fng = d?.us_fear?.fear_greed;
+        const extra = fng && fng.score!=null ? ('CNN 恐惧贪婪 ' + Number(fng.score).toFixed(0) + ' (' + (fng.rating||'') + ')') : '';
+        renderVIX(p, chg, extra);
+        return;
+      }
+    }
+  }catch(e){ /* 无 CORS 头时浏览器会抛错，走兜底 */ }
+  // 方案2: Yahoo VIX + allorigins 代理（与 homjanon.github.io 同源，国内可用）
+  for(const proxy of VIX_PROXIES){
+    try{
+      const url = proxy.startsWith('https://api.codetabs.com')
+        ? proxy + VIX_API
+        : proxy + encodeURIComponent(VIX_API);
+      const r = await fetch(url, {cache:'no-store'});
+      if(!r.ok) continue;
+      const d = await r.json();
+      const m = d?.chart?.result?.[0]?.meta;
+      if(!m?.regularMarketPrice) continue;
+      const p = Number(m.regularMarketPrice);
+      const pp = m.chartPreviousClose;
+      const chg = pp ? (p-pp)/pp*100 : null;
+      renderVIX(p, chg, '');
+      return;
+    }catch(e){ /* 换下一个代理 */ }
+  }
+  document.getElementById('vixNum').textContent = '--';
+  document.getElementById('vixTag').textContent = '不可用';
+  document.getElementById('vixTag').style.background = 'var(--neutral)';
+}
+setDate();
+loadXXFI();
+loadQG();
+loadVIX();
+</script>
+</body>
+</html>
