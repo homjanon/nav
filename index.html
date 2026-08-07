@@ -84,9 +84,14 @@
   .qg-pick-row .act{color:#185fa5;font-size:11px}
   .qg-pick-row .pos{color:var(--sub);font-size:11px}
 
-  .outlook{margin-top:14px;background:linear-gradient(90deg,#fdf8ef,#faf5e8);border:1px solid #f0e4c8;
-    border-radius:12px;padding:12px 14px;font-size:12px;color:#633806}
+  .outlook{margin-top:12px;background:linear-gradient(90deg,#fdf8ef,#faf5e8);border:1px solid #f0e4c8;
+    border-radius:10px;padding:10px 12px;font-size:12px;color:#633806;line-height:1.7}
   .outlook b{display:block;font-size:12px;margin-bottom:4px}
+
+  /* 今日定性导语横条 */
+  .lede-bar{background:linear-gradient(90deg,#eef4ff,#f6f9ff);border:1px solid #d5e2f8;
+    border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:#0c447c;line-height:1.7}
+  .lede-bar b{display:block;font-size:12px;margin-bottom:4px;color:#185fa5}
 
   /* 加载失败占位 */
   .err-box{font-size:12px;color:var(--sub);padding:20px;text-align:center}
@@ -124,6 +129,10 @@
     <div class="today-head">
       <div class="today-title">今日要点</div>
       <div class="today-date" id="todayDate">加载中…</div>
+    </div>
+    <div class="lede-bar" id="ledeBar" style="display:none">
+      <b>📰 今日定性导语</b>
+      <span id="ledeText"></span>
     </div>
     <div class="today-grid">
       <!-- 小旭恐惧指数 -->
@@ -164,15 +173,11 @@
           <div class="qg-sec-name">观望 <small>watch</small></div>
           <div class="chips" id="qgWatch"></div>
         </div>
-        <div class="qg-sec">
-          <div class="qg-sec-name">回避 <small>avoid</small></div>
-          <div class="chips" id="qgAvoid"></div>
+        <div class="outlook" id="qgOutlook" style="display:none">
+          <b>💬 秋哥一句话</b>
+          <span id="qgOutlookText"></span>
         </div>
       </div>
-    </div>
-    <div class="outlook" id="qgOutlook" style="display:none">
-      <b>💬 秋哥一句话</b>
-      <span id="qgOutlookText"></span>
     </div>
   </section>
 
@@ -203,41 +208,57 @@
       <p class="desc">五大行五维评分 · 价值投资追踪</p>
       <p class="url">cmb-tracker.hellohopo.dpdns.org</p>
     </a>
+    <a class="card" href="https://douban-tracker.hellohopo.dpdns.org/" style="--accent:#00b51d">
+      <div class="ico">🎬</div>
+      <h2>豆瓣楼主发言追踪</h2>
+      <p class="desc">楼主发言 · 持仓动态 · 每日报告</p>
+      <p class="url">douban-tracker.hellohopo.dpdns.org</p>
+    </a>
   </div>
 
   <div class="foot">老张胡辣汤 工具箱 · 2026 · 仅供研究，非投资建议</div>
 
 <script>
-const XXFI_URL = 'https://raw.githubusercontent.com/homjanon/xiaoxu-fear/main/output/xxfi_report.json';
+const XXFI_URL = 'https://raw.githubusercontent.com/homjanon/market-live/main/docs/data.json';
 const QG_URL   = 'https://raw.githubusercontent.com/homjanon/xiaoxu-fear/main/output/qiuge_report.json';
-const ML_URL   = 'https://market-live.hellohopo.dpdns.org/api/data';
-const VIX_API  = 'https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX?interval=1d&range=2d';
-const VIX_PROXIES = [
-  'https://api.allorigins.win/raw?url=',
-  'https://corsproxy.io/?',
-  'https://api.codetabs.com/v1/proxy?quest='
-];
+const LEDE_URL = 'https://raw.githubusercontent.com/homjanon/portfolio/main/docs/daily-report.md';
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 
-async function loadXXFI(){
+// market-live data.json：一次请求同时拿到 XXFI + VIX（30分钟自动更新）
+async function loadMarketLive(){
   try{
     const r = await fetch(XXFI_URL,{cache:'no-store'});
     const d = await r.json();
-    const v = Number(d.XXFI);
-    document.getElementById('xxfiNum').textContent = v.toFixed(1);
-    const badge = document.getElementById('xxfiBadge');
-    const sig = (d.contrarian_signal||'HOLD').toUpperCase();
-    badge.textContent = sig;
-    badge.className = 'xxfi-badge ' + ({BUY:'b-buy',ACCUMULATE:'b-acc',HOLD:'b-hold',REDUCE:'b-red',SELL:'b-sell'}[sig]||'b-hold');
-    const gauge = document.getElementById('xxfiGauge');
-    gauge.style.width = Math.max(0,Math.min(100,v)) + '%';
-    gauge.style.background = v>=75?'var(--down)':v>=60?'#3aa0ff':v>=40?'var(--neutral)':v>=25?'var(--greed)':'var(--up)';
-    document.getElementById('xxfiAdvice').textContent = (d.level||'') + '。' + (d.advice||'').split('。')[0] + '。';
-    return d;
+
+    // —— 小旭恐惧指数 ——
+    const xxfi = d.xxfi || {};
+    const v = Number(xxfi.XXFI);
+    if(!isNaN(v)){
+      document.getElementById('xxfiNum').textContent = v.toFixed(1);
+      const badge = document.getElementById('xxfiBadge');
+      const sig = (xxfi.contrarian_signal||'HOLD').toUpperCase();
+      badge.textContent = sig;
+      badge.className = 'xxfi-badge ' + ({BUY:'b-buy',ACCUMULATE:'b-acc',HOLD:'b-hold',REDUCE:'b-red',SELL:'b-sell'}[sig]||'b-hold');
+      const gauge = document.getElementById('xxfiGauge');
+      gauge.style.width = Math.max(0,Math.min(100,v)) + '%';
+      gauge.style.background = v>=75?'var(--down)':v>=60?'#3aa0ff':v>=40?'var(--neutral)':v>=25?'var(--greed)':'var(--up)';
+      document.getElementById('xxfiAdvice').textContent = (xxfi.level||'') + '。' + (xxfi.advice||'').split('。')[0] + '。';
+    }
+
+    // —— VIX 恐慌指数 ——
+    const vix = d.us_fear && d.us_fear.vix;
+    if(vix && vix.price != null){
+      const p = Number(vix.price);
+      const pp = vix.prev_close;
+      const chg = pp ? (p-pp)/pp*100 : null;
+      renderVIX(p, chg);
+    }
   }catch(e){
     document.getElementById('xxfiAdvice').textContent = '小旭恐惧指数加载失败';
-    return null;
+    document.getElementById('vixNum').textContent = '--';
+    document.getElementById('vixTag').textContent = '不可用';
+    document.getElementById('vixTag').style.background = 'var(--neutral)';
   }
 }
 
@@ -273,8 +294,6 @@ async function loadQG(){
     document.getElementById('qgPicks').innerHTML = ph;
     const w = d.watch||[];
     document.getElementById('qgWatch').innerHTML = w.length?w.map(x=>'<span class="chip watch">'+esc(x)+'</span>').join(''):'<span class="chip">—</span>';
-    const a = d.avoid||[];
-    document.getElementById('qgAvoid').innerHTML = a.length?a.map(x=>'<span class="chip avoid">'+esc(x)+'</span>').join(''):'<span class="chip">—</span>';
     if(d.outlook){
       document.getElementById('qgOutlook').style.display='block';
       document.getElementById('qgOutlookText').textContent = d.outlook;
@@ -286,13 +305,26 @@ async function loadQG(){
   }
 }
 
+// 今日定性导语：从 portfolio 日报 MD 提取第一段
+async function loadLede(){
+  try{
+    const r = await fetch(LEDE_URL,{cache:'no-store'});
+    const md = await r.text();
+    const m = md.match(/\*\*今日定性导语\*\*[:：]\s*([^\n]+)/);
+    if(m && m[1]){
+      document.getElementById('ledeText').textContent = m[1].trim();
+      document.getElementById('ledeBar').style.display = 'block';
+    }
+  }catch(e){ /* 加载失败则隐藏 */ }
+}
+
 function setDate(){
   const now = new Date(Date.now()+8*3600*1000);
   const s = now.toISOString().slice(0,10);
   document.getElementById('todayDate').textContent = s;
 }
 
-function renderVIX(p, chg, extra){
+function renderVIX(p, chg){
   document.getElementById('vixNum').textContent = p.toFixed(2);
   const chgEl = document.getElementById('vixChg');
   if(chg != null){
@@ -311,53 +343,12 @@ function renderVIX(p, chg, extra){
   tag.textContent = tText; tag.style.background = tBg;
   const marker = document.getElementById('vixBar').querySelector('i');
   marker.style.left = 'calc(' + tLeft + '% - 1.5px)';
-  document.getElementById('vixHint').textContent = 'VIX ' + p.toFixed(2) + ' · ' + tText + (extra ? '　|　' + extra : '');
-}
-
-async function loadVIX(){
-  // 方案1: market-live /api/data（若未来加了 CORS 头则最优；当前可能被浏览器拦截）
-  try{
-    const r = await fetch(ML_URL, {cache:'no-store'});
-    if(r.ok){
-      const d = await r.json();
-      const vix = d?.us_fear?.vix;
-      if(vix && vix.price != null){
-        const p = Number(vix.price);
-        const pp = vix.prev_close;
-        const chg = pp ? (p-pp)/pp*100 : null;
-        const fng = d?.us_fear?.fear_greed;
-        const extra = fng && fng.score!=null ? ('CNN 恐惧贪婪 ' + Number(fng.score).toFixed(0) + ' (' + (fng.rating||'') + ')') : '';
-        renderVIX(p, chg, extra);
-        return;
-      }
-    }
-  }catch(e){ /* 无 CORS 头时浏览器会抛错，走兜底 */ }
-  // 方案2: Yahoo VIX + allorigins 代理（与 homjanon.github.io 同源，国内可用）
-  for(const proxy of VIX_PROXIES){
-    try{
-      const url = proxy.startsWith('https://api.codetabs.com')
-        ? proxy + VIX_API
-        : proxy + encodeURIComponent(VIX_API);
-      const r = await fetch(url, {cache:'no-store'});
-      if(!r.ok) continue;
-      const d = await r.json();
-      const m = d?.chart?.result?.[0]?.meta;
-      if(!m?.regularMarketPrice) continue;
-      const p = Number(m.regularMarketPrice);
-      const pp = m.chartPreviousClose;
-      const chg = pp ? (p-pp)/pp*100 : null;
-      renderVIX(p, chg, '');
-      return;
-    }catch(e){ /* 换下一个代理 */ }
-  }
-  document.getElementById('vixNum').textContent = '--';
-  document.getElementById('vixTag').textContent = '不可用';
-  document.getElementById('vixTag').style.background = 'var(--neutral)';
+  document.getElementById('vixHint').textContent = 'VIX ' + p.toFixed(2) + ' · ' + tText + '　|　VIX ≥30 恐慌 · ≥40 极度恐慌';
 }
 setDate();
-loadXXFI();
+loadMarketLive();
 loadQG();
-loadVIX();
+loadLede();
 </script>
 </body>
 </html>
