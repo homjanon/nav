@@ -116,12 +116,22 @@
   .card .url{font-size:11px;color:var(--accent);word-break:break-all}
   .foot{color:var(--sub);font-size:11px;text-align:center;margin-top:28px}
   .loading{color:var(--sub);font-size:12px;padding:8px 0}
+
+  /* 每日速览一句话 */
+  .daily-line{
+    display:inline-block;max-width:720px;margin:0 auto;font-size:13px;color:var(--sub);
+    background:var(--card);border:1px solid var(--line);border-radius:999px;
+    padding:6px 16px;line-height:1.5;
+  }
+  .daily-line b{font-weight:600;color:var(--ink)}
+  .daily-line.warn{background:#fef2f2;border-color:#f5c2c2;color:#a32d2d}
+  .daily-line.warn b{color:#a32d2d}
 </style>
 </head>
 <body>
   <div class="header">
     <h1>🏠 老张胡辣汤 工具箱</h1>
-    <p>今日要点 · 板块导航</p>
+    <p><span class="daily-line" id="dailyLine">⏳ 每日速览加载中…</span></p>
   </div>
 
   <!-- 今日要点 -->
@@ -324,6 +334,87 @@ function setDate(){
   document.getElementById('todayDate').textContent = s;
 }
 
+/* ===== 每日速览（预警 → 天气 → 轮换库） ===== */
+const WEATHER_URL = 'https://api.open-meteo.com/v1/forecast?latitude=22.5833&longitude=113.0833&current=temperature_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=Asia%2FShanghai&forecast_days=1';
+const TYPHOON_URL = 'https://typhoon.slt.zj.gov.cn/Api/TyhoonActivity';
+
+const WMO = {
+  0:'晴',1:'基本晴',2:'多云',3:'阴',45:'雾',48:'雾凇',
+  51:'毛毛雨',53:'小雨',55:'中雨',61:'小雨',63:'中雨',65:'大雨',
+  71:'小雪',73:'中雪',75:'大雪',80:'阵雨',81:'强阵雨',82:'暴雨',
+  95:'雷雨',96:'雷雨伴冰雹',99:'强雷暴'
+};
+
+const ROTATE_POOL = [
+  '🌤 今日宜专注：先啃最难的那块骨头，其余自然顺遂。',
+  '📖 一句老话：「财不入急门，福不享躁人」——慢即是快。',
+  '💧 入伏多湿热，记得补水，空调房待久了出去透透气。',
+  '🌙 每晚 23 点前入睡，是对明天最好的投资。',
+  '🎯 今日宜整理：清空一件无关紧要的事，给大脑腾地方。',
+  '🏃 久坐伤身，每 45 分钟起来活动 3 分钟。',
+  '🍵 今日宜品茶：一杯热茶，胜过千言万语。',
+  '🌱 想到就做，别等「合适时机」——时机是干出来的。',
+  '💡 今日提醒：把最重要的三件事写下来，逐一完成。',
+  '🌊 心静自然凉：情绪烦躁时，深呼吸十次再开口。',
+  '📚 书山有路勤为径——今天也读几页书吧。',
+  '☀️ 早起 15 分钟，一天都从容。',
+];
+
+function rotatePick(){
+  const today = new Date(Date.now()+8*3600*1000).toISOString().slice(0,10);
+  try{
+    const k = 'daily_rotate_' + today;
+    let idx = parseInt(localStorage.getItem(k), 10);
+    if(isNaN(idx)) idx = Math.floor(Math.random()*ROTATE_POOL.length);
+    localStorage.setItem(k, String((idx+1)%ROTATE_POOL.length));
+    return ROTATE_POOL[idx];
+  }catch(e){ return ROTATE_POOL[Math.floor(Math.random()*ROTATE_POOL.length)]; }
+}
+
+async function loadDailyLine(){
+  const el = document.getElementById('dailyLine');
+  const setText = (html, warn) => {
+    el.innerHTML = html;
+    el.classList.toggle('warn', !!warn);
+  };
+
+  // ① 台风预警（最高优先，整天保留）
+  try{
+    const r = await fetch(TYPHOON_URL, {cache:'no-store'});
+    if(r.ok){
+      const list = await r.json();
+      if(list && list.length){
+        const t = list[0];
+        setText(`⚠️ <b>台风「${t.name||''}」</b>(${t.strong||''}${t.power?(' '+t.power+'级'):''}) · ${t.movedirection||''}移动 · 沿海注意风雨 · <b>今天出门留神</b>`, true);
+        return;
+      }
+    }
+  }catch(e){ /* 预警接口失败则继续天气 */ }
+
+  // ② 今日天气（江门）
+  try{
+    const r = await fetch(WEATHER_URL, {cache:'no-store'});
+    if(r.ok){
+      const d = await r.json();
+      const cur = d.current || {};
+      const day = d.daily || {};
+      const tmax = day.temperature_2m_max?.[0], tmin = day.temperature_2m_min?.[0];
+      const wcode = cur.weather_code != null ? cur.weather_code : day.weather_code?.[0];
+      const wtxt = WMO[wcode] || '晴';
+      const wind = cur.wind_speed_10m != null ? Math.round(cur.wind_speed_10m) : null;
+      let s = `☀️ <b>江门今日 ${wtxt}</b>`;
+      if(tmin != null && tmax != null) s += ` · ${tmin}~${tmax}℃`;
+      if(wind != null) s += ` · 风 ${wind}km/h`;
+      s += ` · 天气不错，宜出行`;
+      setText(s, false);
+      return;
+    }
+  }catch(e){ /* 天气失败则轮换库 */ }
+
+  // ③ 轮换库兜底
+  setText(rotatePick(), false);
+}
+
 function renderVIX(p, chg){
   document.getElementById('vixNum').textContent = p.toFixed(2);
   const chgEl = document.getElementById('vixChg');
@@ -349,6 +440,7 @@ setDate();
 loadMarketLive();
 loadQG();
 loadLede();
+loadDailyLine();
 </script>
 </body>
 </html>
