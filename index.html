@@ -245,9 +245,31 @@
   <div class="foot">老张胡辣汤 工具箱 · 2026 · 仅供研究，非投资建议</div>
 
 <script>
-const XXFI_URL = 'https://raw.githubusercontent.com/homjanon/market-live/main/docs/data.json';
-const QG_URL   = 'https://raw.githubusercontent.com/homjanon/xiaoxu-fear/main/output/qiuge_report.json';
-const LEDE_URL = 'https://raw.githubusercontent.com/homjanon/portfolio/main/docs/daily-report.md';
+// GitHub 内容三级加速：jsdelivr CDN → proxy 代理 → 直连（国内直连 GitHub 常超时）
+const PROXY_URL = 'https://proxy.hellohopo.dpdns.org/?url=';
+const GH_REPOS = {
+  market: 'homjanon/market-live@main/docs/data.json',
+  qiuge:  'homjanon/xiaoxu-fear@main/output/qiuge_report.json',
+  lede:   'homjanon/portfolio@main/docs/daily-report.md'
+};
+const JSDELIVR = id => 'https://cdn.jsdelivr.net/gh/' + GH_REPOS[id];
+const GITHUB_RAW = id => 'https://raw.githubusercontent.com/' + GH_REPOS[id];
+const PROXYED = id => PROXY_URL + encodeURIComponent(GITHUB_RAW(id));
+
+async function fetchSmart(id){
+  // market（高频 30 分钟更新）→ proxy 优先保实时；qiuge/lede（低频）→ jsdelivr 优先保速度
+  const order = id === 'market'
+    ? ['proxy','jsdelivr','raw']
+    : ['jsdelivr','proxy','raw'];
+  const urls = { jsdelivr:JSDELIVR(id), proxy:PROXYED(id), raw:GITHUB_RAW(id) };
+  for(const k of order){
+    try{
+      const r = await fetch(urls[k], {cache:'no-store'});
+      if(r.ok) return r;
+    }catch(e){}
+  }
+  return fetch(urls.raw, {cache:'no-store'});
+}
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 
@@ -255,7 +277,7 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','
 let marketTime = null;
 async function loadMarketLive(){
   try{
-    const r = await fetch(XXFI_URL,{cache:'no-store'});
+    const r = await fetchSmart('market');
     const d = await r.json();
     if(d.generated_at) marketTime = d.generated_at;
 
@@ -307,7 +329,7 @@ function renderUpdateNote(){
 
 async function loadQG(){
   try{
-    const r = await fetch(QG_URL,{cache:'no-store'});
+    const r = await fetchSmart('qiuge');
     const d = await r.json();
     const idx = d.index||{};
     document.getElementById('qgIdx').textContent = (idx.name||'上证指数') + ' ' + (idx.close!=null?idx.close:'--');
@@ -354,7 +376,7 @@ async function loadQG(){
 let ledeDate = null;
 async function loadLede(){
   try{
-    const r = await fetch(LEDE_URL,{cache:'no-store'});
+    const r = await fetchSmart('lede');
     const md = await r.text();
     const m = md.match(/\*\*今日定性导语\*\*[:：]\s*([^\n]+)/);
     if(m && m[1]){
@@ -427,9 +449,7 @@ async function locate(){
   return DEFAULT_LOC;
 }
 const TYPHOON_URL = 'https://typhoon.slt.zj.gov.cn/Api/TyhoonActivity';
-// cors-proxy 自定义域名（代理 nmc.cn HTTP 预警 + 任意跨域接口）
-const PROXY_URL = 'https://proxy.hellohopo.dpdns.org/?url=';
-// nmc.cn 预警（HTTP，经 proxy 转发）— 关注地：广东江门 + 重庆万州
+// nmc.cn 预警（HTTP，经 proxy 转发；PROXY_URL 已在顶部定义）— 关注地：广东江门 + 重庆万州
 function nmcUrl(province){
   return PROXY_URL + encodeURIComponent('http://www.nmc.cn/rest/findAlarm?pageNo=1&pageSize=30&signaltype=&signallevel=&province=' + encodeURIComponent(province));
 }
