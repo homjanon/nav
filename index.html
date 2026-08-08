@@ -117,22 +117,33 @@
   .foot{color:var(--sub);font-size:11px;text-align:center;margin-top:28px}
   .loading{color:var(--sub);font-size:12px;padding:8px 0}
 
-  /* 每日速览一句话 */
+  /* 每日速览（分层） */
+  .daily-wrap{max-width:720px;margin:0 auto}
   .daily-line{
-    display:inline-block;max-width:720px;margin:0 auto;font-size:13px;color:var(--sub);
-    background:var(--card);border:1px solid var(--line);border-radius:999px;
-    padding:6px 16px;line-height:1.5;
+    display:block;font-size:13px;color:var(--sub);line-height:1.7;
+    background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:8px 16px;margin-bottom:6px;text-align:left;
   }
+  .daily-line:last-child{margin-bottom:0}
   .daily-line b{font-weight:600;color:var(--ink)}
-  .daily-line .dl-warn{color:#a32d2d}
-  .daily-line .dl-warn b{color:#a32d2d}
-  .daily-line .dl-sep{color:#c9ced4;padding:0 2px}
+  .daily-line .ic{margin-right:6px}
+  /* 预警等级 */
+  .dl-red{background:#fef2f2;border-color:#f5c2c2;color:#a32d2d}
+  .dl-red b{color:#a32d2d}
+  .dl-orange{background:#fdf6ec;border-color:#f5ddb8;color:#9a5b1f}
+  .dl-orange b{color:#9a5b1f}
+  .dl-yellow{background:#fefbe8;border-color:#eee6a8;color:#7a6a10}
+  .dl-yellow b{color:#7a6a10}
+  .dl-blue{background:#eef6ff;border-color:#c5ddf5;color:#185fa5}
+  .dl-blue b{color:#185fa5}
+  .daily-line .dl-tag{display:inline-block;font-size:10px;border-radius:4px;padding:1px 6px;margin-right:8px;vertical-align:1px;color:#fff}
+  .dl-tag.red{background:#e24b4a}.dl-tag.orange{background:#f0997b}.dl-tag.yellow{background:#e6b84c}
 </style>
 </head>
 <body>
   <div class="header">
     <h1>🏠 老张胡辣汤 工具箱</h1>
-    <p><span class="daily-line" id="dailyLine">⏳ 每日速览加载中…</span></p>
+    <div class="daily-wrap" id="dailyWrap"></div>
   </div>
 
   <!-- 今日要点 -->
@@ -335,17 +346,13 @@ function setDate(){
   document.getElementById('todayDate').textContent = s;
 }
 
-/* ===== 每日速览（预警 → 天气 → 轮换库） ===== */
-const TYPHOON_URL = 'https://typhoon.slt.zj.gov.cn/Api/TyhoonActivity';
-const IP_URL    = 'https://ipinfo.io/json';                                  // IP 定位主源（https+CORS 全开）
-const IP_URL_CN = 'http://ip-api.com/json/?lang=zh-CN';                      // IP 定位备源（中文城市名，http）
-const DEFAULT_LOC = { lat: 22.5833, lon: 113.0833, city: '江门' };           // 最终兜底（原固定坐标）
-const HITOKOTO_CATS = ['d','i','k','h','j'];                                 // 一言分类：诗词/文学/哲学/影视/网易云
-const HITOKOTO_URL = 'https://v1.hitokoto.cn/?c=' + HITOKOTO_CATS[Math.floor(Math.random()*HITOKOTO_CATS.length)] + '&encode=json';
-
+/* ===== 每日速览（预警区 → 天气 → 每日一句） ===== */
+// 天气：IP 定位（三层保险：ipinfo → ip-api → 江门兜底）
+const IP_URL = 'https://ipinfo.io/json?token=';
+const IP_URL_CN = 'https://ip-api.com/json/?lang=zh-CN&fields=status,lat,lon,city';
+const DEFAULT_LOC = { lat:22.5833, lon:113.0833, city:'江门' };
 function makeWeatherURL(lat, lon){
-  return 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon +
-    '&current=temperature_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=Asia%2FShanghai&forecast_days=1';
+  return 'https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lon+'&current=temperature_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=Asia%2FShanghai&forecast_days=1';
 }
 async function locate(){
   try{
@@ -365,6 +372,15 @@ async function locate(){
   }catch(e){}
   return DEFAULT_LOC;
 }
+const TYPHOON_URL = 'https://typhoon.slt.zj.gov.cn/Api/TyhoonActivity';
+// cors-proxy 自定义域名（代理 nmc.cn HTTP 预警 + 任意跨域接口）
+const PROXY_URL = 'https://proxy.hellohopo.dpdns.org/?url=';
+// nmc.cn 预警（HTTP，经 proxy 转发）— 关注地：广东江门 + 重庆万州
+function nmcUrl(province){
+  return PROXY_URL + encodeURIComponent('http://www.nmc.cn/rest/findAlarm?pageNo=1&pageSize=30&signaltype=&signallevel=&province=' + encodeURIComponent(province));
+}
+// 一言（每日一句）
+const HITOKOTO_URL = 'https://v1.hitokoto.cn/?c=k&c=i&c=a&c=d&c=w&encode=json';
 
 const WMO = {
   0:'晴',1:'基本晴',2:'多云',3:'阴',45:'雾',48:'雾凇',
@@ -373,6 +389,7 @@ const WMO = {
   95:'雷雨',96:'雷雨伴冰雹',99:'强雷暴'
 };
 
+// 每日一句兜底池（一言失败时用）
 const ROTATE_POOL = [
   '🌤 今日宜专注：先啃最难的那块骨头，其余自然顺遂。',
   '📖 一句老话：「财不入急门，福不享躁人」——慢即是快。',
@@ -388,44 +405,90 @@ const ROTATE_POOL = [
   '☀️ 早起 15 分钟，一天都从容。',
 ];
 
-async function rotatePick(){
+// 每日一句（一言，当日缓存固定）
+async function hitokotoPick(){
   const today = new Date(Date.now()+8*3600*1000).toISOString().slice(0,10);
-  // 一言每日一句（随机分类，当日缓存）；失败返回 null，该级不显示
+  const k = 'hitokoto_' + today;
   try{
-    const k = 'daily_quote_' + today;
-    let cached = localStorage.getItem(k);
-    if(!cached){
-      const r = await fetch(HITOKOTO_URL, {cache:'no-store'});
-      if(r.ok){
-        const j = await r.json();
-        if(j && j.hitokoto){
-          const from = j.from ? (' —— ' + j.from + (j.from_who?'·'+j.from_who:'')) : '';
-          cached = '「' + j.hitokoto + '」' + from;
-          localStorage.setItem(k, cached);
-        }
+    const cached = localStorage.getItem(k);
+    if(cached) return cached;
+    const r = await fetch(HITOKOTO_URL, {cache:'no-store'});
+    if(r.ok){
+      const j = await r.json();
+      if(j && j.hitokoto){
+        let s = '「' + j.hitokoto + '」';
+        if(j.from) s += ' —— ' + j.from + (j.from_who ? '·'+j.from_who : '');
+        localStorage.setItem(k, s);
+        return s;
       }
     }
-    return cached || null;
-  }catch(e){ return null; }
+  }catch(e){}
+  return ROTATE_POOL[Math.floor(Math.random()*ROTATE_POOL.length)];
+}
+
+// 预警等级判定（nmc title 包含 等级+类型）
+function alarmLevel(title){
+  if(/红色/.test(title)) return {cls:'dl-red', tag:'红', tagCls:'red'};
+  if(/橙色/.test(title)) return {cls:'dl-orange', tag:'橙', tagCls:'orange'};
+  if(/黄色/.test(title)) return {cls:'dl-yellow', tag:'黄', tagCls:'yellow'};
+  if(/蓝色/.test(title)) return {cls:'dl-blue', tag:'蓝', tagCls:'blue'};
+  return {cls:'', tag:'', tagCls:''};
 }
 
 async function loadDailyLine(){
-  const el = document.getElementById('dailyLine');
-  const parts = [];   // 三级独立显示，各自成功才加入
+  const wrap = document.getElementById('dailyWrap');
+  const lines = [];
 
-  // ① 台风预警（独立：有台风才显示，整天保留）
+  // ① 预警区：台风 + nmc 双地预警（江门 / 重庆万州，哪里有事显示哪里）
+  let typhoon = null;
   try{
     const r = await fetch(TYPHOON_URL, {cache:'no-store'});
     if(r.ok){
       const list = await r.json();
-      if(list && list.length){
-        const t = list[0];
-        parts.push(`<span class="dl-warn">⚠️ <b>台风「${t.name||''}」</b>(${t.strong||''}${t.power?(' '+t.power+'级'):''}) · ${t.movedirection||''}移动 · 沿海注意风雨 · <b>今天出门留神</b></span>`);
-      }
+      if(list && list.length) typhoon = list[0];
     }
-  }catch(e){ /* 预警失败则该级不显示 */ }
+  }catch(e){}
 
-  // ② 今日天气（独立：IP 定位 → open-meteo）
+  // 拉取两省预警
+  const fetchAlarms = async (prov) => {
+    try{
+      const r = await fetch(nmcUrl(prov), {cache:'no-store'});
+      if(r.ok){
+        const d = await r.json();
+        return ((d && d.data && d.data.page && d.data.page.list) || []).filter(x => x && x.title);
+      }
+    }catch(e){}
+    return [];
+  };
+  const [gdAlarms, cqAlarms] = await Promise.all([fetchAlarms('广东'), fetchAlarms('重庆')]);
+
+  if(typhoon){
+    const t = typhoon;
+    lines.push(`<div class="daily-line dl-red"><span class="ic">⚠️</span><span class="dl-tag red">台风</span><b>「${t.name||''}」</b>（${t.strong||''}${t.power?(' '+t.power+'级'):''}）${t.movedirection||''}移动 · ${t.movespeed?('时速'+t.movespeed+'km'):''} · 沿海注意风雨</div>`);
+  }
+
+  // 预警行渲染：某地有预警才显示该地；显示该地最严重的一条
+  const levelRank = (title) => /红色/.test(title)?4:/橙色/.test(title)?3:/黄色/.test(title)?2:/蓝色/.test(title)?1:0;
+  const renderAlarm = (al) => {
+    const lv = alarmLevel(al.title);
+    const type = (al.title.match(/发布(.+?)预警/) || [,'预警'])[1];
+    const city = (al.title.match(/(?:省)(.+?市)气象台/) || [,''])[1] || (al.title.match(/^(?:重庆市)/) ? '重庆' : '');
+    const bg = lv.tagCls==='red'?'#e24b4a':lv.tagCls==='orange'?'#f0997b':lv.tagCls==='yellow'?'#e6b84c':'#5aa7e0';
+    lines.push(`<div class="daily-line ${lv.cls}"><span class="ic">🔶</span><span class="dl-tag ${lv.tagCls}" style="${lv.tag?('background:'+bg):''}">${lv.tag||'警'}</span><b>${type}预警</b>${lv.tag?('（'+lv.tag+'色）'):''}${city?(' · '+city):''} · ${al.title.replace(/[^·]*气象台发布.+预警信号/,'').trim()||'注意防范'}</div>`);
+  };
+
+  // 江门：广东预警中「江门市气象台」发布的市级预警，取最严重一条
+  const jm = gdAlarms.filter(a => /江门市气象台/.test(a.title)).sort((a,b)=>levelRank(b.title)-levelRank(a.title))[0];
+  if(jm) renderAlarm(jm);
+
+  // 重庆万州：优先万州；无万州则取「重庆市气象台」市级；再无则不显示
+  let cqPick = cqAlarms.filter(a => /万州/.test(a.title)).sort((a,b)=>levelRank(b.title)-levelRank(a.title))[0];
+  if(!cqPick){
+    cqPick = cqAlarms.filter(a => /^重庆市气象台/.test(a.title)).sort((a,b)=>levelRank(b.title)-levelRank(a.title))[0];
+  }
+  if(cqPick) renderAlarm(cqPick);
+
+  // ② 今日天气（独立行：IP 定位 → open-meteo）
   try{
     const loc = await locate();
     const r = await fetch(makeWeatherURL(loc.lat, loc.lon), {cache:'no-store'});
@@ -437,28 +500,21 @@ async function loadDailyLine(){
       const wcode = cur.weather_code != null ? cur.weather_code : day.weather_code?.[0];
       const wtxt = WMO[wcode] || '晴';
       const wind = cur.wind_speed_10m != null ? Math.round(cur.wind_speed_10m) : null;
-      let s = `☀️ <b>${loc.city||'当地'}今日 ${wtxt}</b>`;
+      let s = `<span class="ic">☀️</span><b>${loc.city||'当地'}今日 ${wtxt}</b>`;
       if(tmin != null && tmax != null) s += ` · ${tmin}~${tmax}℃`;
       if(wind != null) s += ` · 风 ${wind}km/h`;
-      s += ` · 天气不错，宜出行`;
-      parts.push(`<span>${s}</span>`);
+      lines.push(`<div class="daily-line">${s}</div>`);
     }
-  }catch(e){ /* 天气失败则该级不显示 */ }
+  }catch(e){}
 
-  // ③ 每日一句（独立：一言成功才显示，失败不显示）
+  // ③ 每日一句（固定显示）
   try{
-    const q = await rotatePick();
-    if(q) parts.push(`<span>${q}</span>`);
-  }catch(e){ /* 失败则该级不显示 */ }
+    const q = await hitokotoPick();
+    if(q) lines.push(`<div class="daily-line"><span class="ic">💬</span>${q}</div>`);
+  }catch(e){}
 
-  // 渲染：全部失败则显示提示，否则用「 · 」连接
-  if(parts.length){
-    el.innerHTML = parts.join(' <span class="dl-sep">·</span> ');
-    el.classList.remove('warn');
-  }else{
-    el.innerHTML = '⏳ 每日速览暂无数据（接口暂不可用，稍后刷新）';
-    el.classList.remove('warn');
-  }
+  wrap.innerHTML = lines.length ? lines.join('') :
+    '<div class="daily-line">⏳ 每日速览暂无数据（接口暂不可用，稍后刷新）</div>';
 }
 
 function renderVIX(p, chg){
