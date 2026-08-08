@@ -513,17 +513,7 @@ async function loadDailyLine(){
   const wrap = document.getElementById('dailyWrap');
   const lines = [];
 
-  // ① 预警区：台风 + nmc 双地预警（江门 / 重庆万州，哪里有事显示哪里）
-  let typhoon = null;
-  try{
-    const r = await fetch(TYPHOON_URL, {cache:'no-store'});
-    if(r.ok){
-      const list = await r.json();
-      if(list && list.length) typhoon = list[0];
-    }
-  }catch(e){}
-
-  // 拉取两省预警
+  // 并行获取全部数据（互不等待，各自成功各自显示）
   const fetchAlarms = async (prov) => {
     try{
       const r = await fetch(nmcUrl(prov), {cache:'no-store'});
@@ -534,7 +524,37 @@ async function loadDailyLine(){
     }catch(e){}
     return [];
   };
-  const [gdAlarms, cqAlarms] = await Promise.all([fetchAlarms('广东'), fetchAlarms('重庆')]);
+  const fetchTyphoon = async () => {
+    try{
+      const r = await fetch(TYPHOON_URL, {cache:'no-store'});
+      if(r.ok){
+        const list = await r.json();
+        return (list && list.length) ? list[0] : null;
+      }
+    }catch(e){}
+    return null;
+  };
+  const fetchWeather = async () => {
+    try{
+      const loc = await locate();
+      const url = makeWeatherURL(loc.lat, loc.lon);
+      // 天气走 proxy 加速（Open-Meteo 为国外源，国内直连慢）
+      const r = await fetch(PROXY_URL + encodeURIComponent(url), {cache:'no-store'});
+      if(!r.ok) return {resp: await fetch(url, {cache:'no-store'}), loc};
+      return {resp: r, loc};
+    }catch(e){ return {resp:null, loc:null}; }
+  };
+  const fetchQuote = async () => {
+    try{ return await hitokotoPick(); }catch(e){ return null; }
+  };
+
+  // 四路并行：台风 / 广东预警 / 重庆预警 / 天气+每日一句
+  const [typhoon, gdAlarms, cqAlarms, [wresult, quote]] = await Promise.all([
+    fetchTyphoon(),
+    fetchAlarms('广东'),
+    fetchAlarms('重庆'),
+    Promise.all([fetchWeather(), fetchQuote()])
+  ]);
 
   if(typhoon){
     const t = typhoon;
@@ -562,12 +582,12 @@ async function loadDailyLine(){
   }
   if(cqPick) renderAlarm(cqPick);
 
-  // ② 今日天气（独立行：IP 定位 → open-meteo）
-  try{
-    const loc = await locate();
-    const r = await fetch(makeWeatherURL(loc.lat, loc.lon), {cache:'no-store'});
-    if(r.ok){
-      const d = await r.json();
+  // ② 今日天气（独立行：IP 定位 → proxy → open-meteo）
+  const wresp = wresult && wresult.resp;
+  if(wresp && wresp.ok){
+    try{
+      const d = await wresp.json();
+      const loc = wresult.loc || {};
       const cur = d.current || {};
       const day = d.daily || {};
       const tmax = day.temperature_2m_max?.[0], tmin = day.temperature_2m_min?.[0];
@@ -578,14 +598,11 @@ async function loadDailyLine(){
       if(tmin != null && tmax != null) s += ` · ${tmin}~${tmax}℃`;
       if(wind != null) s += ` · 风 ${wind}km/h`;
       lines.push(`<div class="daily-line">${s}</div>`);
-    }
-  }catch(e){}
+    }catch(e){}
+  }
 
   // ③ 每日一句（固定显示）
-  try{
-    const q = await hitokotoPick();
-    if(q) lines.push(`<div class="daily-line"><span class="ic">💬</span>${q}</div>`);
-  }catch(e){}
+  if(quote) lines.push(`<div class="daily-line"><span class="ic">💬</span>${quote}</div>`);
 
   wrap.innerHTML = lines.length ? lines.join('') :
     '<div class="daily-line">⏳ 每日速览暂无数据（接口暂不可用，稍后刷新）</div>';
