@@ -335,8 +335,35 @@ function setDate(){
 }
 
 /* ===== 每日速览（预警 → 天气 → 轮换库） ===== */
-const WEATHER_URL = 'https://api.open-meteo.com/v1/forecast?latitude=22.5833&longitude=113.0833&current=temperature_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=Asia%2FShanghai&forecast_days=1';
 const TYPHOON_URL = 'https://typhoon.slt.zj.gov.cn/Api/TyhoonActivity';
+const IP_URL    = 'https://ipinfo.io/json';                                  // IP 定位主源（https+CORS 全开）
+const IP_URL_CN = 'http://ip-api.com/json/?lang=zh-CN';                      // IP 定位备源（中文城市名，http）
+const DEFAULT_LOC = { lat: 22.5833, lon: 113.0833, city: '江门' };           // 最终兜底（原固定坐标）
+const HITOKOTO_CATS = ['d','i','k','h','j'];                                 // 一言分类：诗词/文学/哲学/影视/网易云
+const HITOKOTO_URL = 'https://v1.hitokoto.cn/?c=' + HITOKOTO_CATS[Math.floor(Math.random()*HITOKOTO_CATS.length)] + '&encode=json';
+
+function makeWeatherURL(lat, lon){
+  return 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon +
+    '&current=temperature_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=Asia%2FShanghai&forecast_days=1';
+}
+async function locate(){
+  try{
+    const r = await fetch(IP_URL, {cache:'no-store'});
+    if(r.ok){
+      const d = await r.json();
+      const ll = String(d.loc||'').split(',').map(Number);
+      if(ll.length===2 && ll[0] && ll[1]) return { lat:ll[0], lon:ll[1], city: d.city||'' };
+    }
+  }catch(e){}
+  try{
+    const r = await fetch(IP_URL_CN, {cache:'no-store'});
+    if(r.ok){
+      const d = await r.json();
+      if(d.status==='success' && d.lat) return { lat:d.lat, lon:d.lon, city:d.city||'' };
+    }
+  }catch(e){}
+  return DEFAULT_LOC;
+}
 
 const WMO = {
   0:'晴',1:'基本晴',2:'多云',3:'阴',45:'雾',48:'雾凇',
@@ -360,8 +387,26 @@ const ROTATE_POOL = [
   '☀️ 早起 15 分钟，一天都从容。',
 ];
 
-function rotatePick(){
+async function rotatePick(){
   const today = new Date(Date.now()+8*3600*1000).toISOString().slice(0,10);
+  // ① 一言每日一句（随机分类，当日缓存）
+  try{
+    const k = 'daily_quote_' + today;
+    let cached = localStorage.getItem(k);
+    if(!cached){
+      const r = await fetch(HITOKOTO_URL, {cache:'no-store'});
+      if(r.ok){
+        const j = await r.json();
+        if(j && j.hitokoto){
+          const from = j.from ? (' —— ' + j.from + (j.from_who?'·'+j.from_who:'')) : '';
+          cached = '「' + j.hitokoto + '」' + from;
+          localStorage.setItem(k, cached);
+        }
+      }
+    }
+    if(cached) return cached;
+  }catch(e){ /* 一言失败 → 本地池 */ }
+  // ② 本地 12 条池兜底（原逻辑）
   try{
     const k = 'daily_rotate_' + today;
     let idx = parseInt(localStorage.getItem(k), 10);
@@ -391,9 +436,10 @@ async function loadDailyLine(){
     }
   }catch(e){ /* 预警接口失败则继续天气 */ }
 
-  // ② 今日天气（江门）
+  // ② 今日天气（IP 定位 → open-meteo）
   try{
-    const r = await fetch(WEATHER_URL, {cache:'no-store'});
+    const loc = await locate();
+    const r = await fetch(makeWeatherURL(loc.lat, loc.lon), {cache:'no-store'});
     if(r.ok){
       const d = await r.json();
       const cur = d.current || {};
@@ -402,7 +448,7 @@ async function loadDailyLine(){
       const wcode = cur.weather_code != null ? cur.weather_code : day.weather_code?.[0];
       const wtxt = WMO[wcode] || '晴';
       const wind = cur.wind_speed_10m != null ? Math.round(cur.wind_speed_10m) : null;
-      let s = `☀️ <b>江门今日 ${wtxt}</b>`;
+      let s = `☀️ <b>${loc.city||'当地'}今日 ${wtxt}</b>`;
       if(tmin != null && tmax != null) s += ` · ${tmin}~${tmax}℃`;
       if(wind != null) s += ` · 风 ${wind}km/h`;
       s += ` · 天气不错，宜出行`;
@@ -411,8 +457,8 @@ async function loadDailyLine(){
     }
   }catch(e){ /* 天气失败则轮换库 */ }
 
-  // ③ 轮换库兜底
-  setText(rotatePick(), false);
+  // ③ 轮换库兜底（一言每日一句，失败回退本地池）
+  setText(await rotatePick(), false);
 }
 
 function renderVIX(p, chg){
