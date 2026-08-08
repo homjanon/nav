@@ -124,8 +124,9 @@
     padding:6px 16px;line-height:1.5;
   }
   .daily-line b{font-weight:600;color:var(--ink)}
-  .daily-line.warn{background:#fef2f2;border-color:#f5c2c2;color:#a32d2d}
-  .daily-line.warn b{color:#a32d2d}
+  .daily-line .dl-warn{color:#a32d2d}
+  .daily-line .dl-warn b{color:#a32d2d}
+  .daily-line .dl-sep{color:#c9ced4;padding:0 2px}
 </style>
 </head>
 <body>
@@ -389,7 +390,7 @@ const ROTATE_POOL = [
 
 async function rotatePick(){
   const today = new Date(Date.now()+8*3600*1000).toISOString().slice(0,10);
-  // ① 一言每日一句（随机分类，当日缓存）
+  // 一言每日一句（随机分类，当日缓存）；失败返回 null，该级不显示
   try{
     const k = 'daily_quote_' + today;
     let cached = localStorage.getItem(k);
@@ -404,39 +405,27 @@ async function rotatePick(){
         }
       }
     }
-    if(cached) return cached;
-  }catch(e){ /* 一言失败 → 本地池 */ }
-  // ② 本地 12 条池兜底（原逻辑）
-  try{
-    const k = 'daily_rotate_' + today;
-    let idx = parseInt(localStorage.getItem(k), 10);
-    if(isNaN(idx)) idx = Math.floor(Math.random()*ROTATE_POOL.length);
-    localStorage.setItem(k, String((idx+1)%ROTATE_POOL.length));
-    return ROTATE_POOL[idx];
-  }catch(e){ return ROTATE_POOL[Math.floor(Math.random()*ROTATE_POOL.length)]; }
+    return cached || null;
+  }catch(e){ return null; }
 }
 
 async function loadDailyLine(){
   const el = document.getElementById('dailyLine');
-  const setText = (html, warn) => {
-    el.innerHTML = html;
-    el.classList.toggle('warn', !!warn);
-  };
+  const parts = [];   // 三级独立显示，各自成功才加入
 
-  // ① 台风预警（最高优先，整天保留）
+  // ① 台风预警（独立：有台风才显示，整天保留）
   try{
     const r = await fetch(TYPHOON_URL, {cache:'no-store'});
     if(r.ok){
       const list = await r.json();
       if(list && list.length){
         const t = list[0];
-        setText(`⚠️ <b>台风「${t.name||''}」</b>(${t.strong||''}${t.power?(' '+t.power+'级'):''}) · ${t.movedirection||''}移动 · 沿海注意风雨 · <b>今天出门留神</b>`, true);
-        return;
+        parts.push(`<span class="dl-warn">⚠️ <b>台风「${t.name||''}」</b>(${t.strong||''}${t.power?(' '+t.power+'级'):''}) · ${t.movedirection||''}移动 · 沿海注意风雨 · <b>今天出门留神</b></span>`);
       }
     }
-  }catch(e){ /* 预警接口失败则继续天气 */ }
+  }catch(e){ /* 预警失败则该级不显示 */ }
 
-  // ② 今日天气（IP 定位 → open-meteo）
+  // ② 今日天气（独立：IP 定位 → open-meteo）
   try{
     const loc = await locate();
     const r = await fetch(makeWeatherURL(loc.lat, loc.lon), {cache:'no-store'});
@@ -452,13 +441,24 @@ async function loadDailyLine(){
       if(tmin != null && tmax != null) s += ` · ${tmin}~${tmax}℃`;
       if(wind != null) s += ` · 风 ${wind}km/h`;
       s += ` · 天气不错，宜出行`;
-      setText(s, false);
-      return;
+      parts.push(`<span>${s}</span>`);
     }
-  }catch(e){ /* 天气失败则轮换库 */ }
+  }catch(e){ /* 天气失败则该级不显示 */ }
 
-  // ③ 轮换库兜底（一言每日一句，失败回退本地池）
-  setText(await rotatePick(), false);
+  // ③ 每日一句（独立：一言成功才显示，失败不显示）
+  try{
+    const q = await rotatePick();
+    if(q) parts.push(`<span>${q}</span>`);
+  }catch(e){ /* 失败则该级不显示 */ }
+
+  // 渲染：全部失败则显示提示，否则用「 · 」连接
+  if(parts.length){
+    el.innerHTML = parts.join(' <span class="dl-sep">·</span> ');
+    el.classList.remove('warn');
+  }else{
+    el.innerHTML = '⏳ 每日速览暂无数据（接口暂不可用，稍后刷新）';
+    el.classList.remove('warn');
+  }
 }
 
 function renderVIX(p, chg){
