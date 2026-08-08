@@ -375,27 +375,53 @@ function setDate(){
 }
 
 /* ===== 每日速览（预警区 → 天气 → 每日一句） ===== */
-// 天气：IP 定位（三层保险：ipinfo → ip-api → 江门兜底）
-const IP_URL = 'https://ipinfo.io/json?token=';
-const IP_URL_CN = 'https://ip-api.com/json/?lang=zh-CN&fields=status,lat,lon,city';
+// 天气：IP 定位（三层保险：ipip.net国内源 → ipinfo → 江门兜底）
+const IP_URL = 'https://myip.ipip.net/json';              // 国内权威库，精确到市，CORS 全开
+const IP_URL_CN = 'https://ipinfo.io/json?token=';        // 海外源备选（有经纬度）
 const DEFAULT_LOC = { lat:22.5833, lon:113.0833, city:'江门' };
+// 常用城市坐标表（ipip 只给城市名不给经纬度，按名匹配）
+const CITY_COORDS = {
+  '江门':[22.5833,113.0833],'广州':[23.13,113.26],'深圳':[22.55,114.06],'珠海':[22.27,113.58],
+  '佛山':[23.02,113.12],'东莞':[23.02,113.75],'中山':[22.52,113.39],'惠州':[23.11,114.42],
+  '肇庆':[23.05,112.47],'清远':[23.68,113.06],'湛江':[21.27,110.36],'茂名':[21.66,110.93],
+  '汕头':[23.35,116.68],'潮州':[23.66,116.62],'揭阳':[23.55,116.37],'汕尾':[22.79,115.37],
+  '梅州':[24.29,116.12],'河源':[23.74,114.70],'阳江':[21.86,111.98],'云浮':[22.92,112.04],
+  '韶关':[24.81,113.60],'北京':[39.90,116.41],'上海':[31.23,121.47],'重庆':[29.56,106.55],
+  '成都':[30.57,104.07],'杭州':[30.27,120.16],'南京':[32.06,118.80],'武汉':[30.59,114.31],
+  '长沙':[28.23,112.94],'福州':[26.07,119.30],'厦门':[24.48,118.09],'南宁':[22.82,108.32],
+  '海口':[20.04,110.32],'昆明':[24.88,102.83],'贵阳':[26.65,106.63],'西安':[34.34,108.94],
+  '郑州':[34.75,113.63],'济南':[36.65,117.12],'青岛':[36.07,120.38],'天津':[39.34,117.36],
+  '太原':[37.87,112.55],'石家庄':[38.04,114.51],'沈阳':[41.81,123.43],'大连':[38.91,121.61],
+  '长春':[43.82,125.32],'哈尔滨':[45.80,126.53],'合肥':[31.82,117.23],'南昌':[28.68,115.86],
+  '兰州':[36.06,103.83],'西宁':[36.62,101.78],'银川':[38.49,106.23],'乌鲁木齐':[43.83,87.62],
+  '呼和浩特':[40.84,111.75],'拉萨':[29.65,91.14],'香港':[22.32,114.17],'澳门':[22.19,113.54],
+  '台北':[25.03,121.57]
+};
 function makeWeatherURL(lat, lon){
   return 'https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lon+'&current=temperature_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=Asia%2FShanghai&forecast_days=1';
 }
 async function locate(){
+  // ① ipip.net（国内权威：location: ["中国","广东","江门","","移动"]）
   try{
     const r = await fetch(IP_URL, {cache:'no-store'});
     if(r.ok){
       const d = await r.json();
-      const ll = String(d.loc||'').split(',').map(Number);
-      if(ll.length===2 && ll[0] && ll[1]) return { lat:ll[0], lon:ll[1], city: d.city||'' };
+      const loc = d && d.data && d.data.location;
+      if(Array.isArray(loc) && loc.length >= 3 && loc[2]){
+        const city = loc[2] || loc[1] || '';
+        const coords = CITY_COORDS[city] || (loc[1] && CITY_COORDS[loc[1]]);
+        if(coords) return { lat:coords[0], lon:coords[1], city };
+        return { lat:DEFAULT_LOC.lat, lon:DEFAULT_LOC.lon, city };
+      }
     }
   }catch(e){}
+  // ② ipinfo.io（海外源备选，有经纬度）
   try{
     const r = await fetch(IP_URL_CN, {cache:'no-store'});
     if(r.ok){
       const d = await r.json();
-      if(d.status==='success' && d.lat) return { lat:d.lat, lon:d.lon, city:d.city||'' };
+      const ll = String(d.loc||'').split(',').map(Number);
+      if(ll.length===2 && ll[0] && ll[1]) return { lat:ll[0], lon:ll[1], city: d.city||'' };
     }
   }catch(e){}
   return DEFAULT_LOC;
