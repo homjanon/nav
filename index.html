@@ -411,7 +411,7 @@ function setDate(){
 /* ===== 每日速览（预警区 → 天气 → 每日一句） ===== */
 // 天气：IP 定位（三层保险：ipip.net国内源 → ipinfo → 江门兜底）
 const IP_URL = 'https://myip.ipip.net/json';              // 国内权威库，精确到市，CORS 全开
-const IP_URL_CN = 'https://ipinfo.io/json?token=';        // 海外源备选（有经纬度）
+const IP_URL_CN = 'https://ipinfo.io/json';              // 海外源备选（有经纬度，免 token）
 const DEFAULT_LOC = { lat:22.5833, lon:113.0833, city:'江门' };
 // 常用城市坐标表（ipip 只给城市名不给经纬度，按名匹配）
 const CITY_COORDS = {
@@ -435,21 +435,21 @@ function makeWeatherURL(lat, lon){
   return 'https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lon+'&current=temperature_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=Asia%2FShanghai&forecast_days=1';
 }
 async function locate(){
-  // ① ipip.net（国内权威：location: ["中国","广东","江门","","移动"]）
+  // ① ipip.net（国内权威：location: ["中国","广东","江门","","移动"]；国外 IP 时 ["美国","美国","","","cloudflare.com"]）
   try{
     const r = await fetch(IP_URL, {cache:'no-store'});
     if(r.ok){
       const d = await r.json();
       const loc = d && d.data && d.data.location;
-      if(Array.isArray(loc) && loc.length >= 3 && loc[2]){
+      if(Array.isArray(loc) && loc.length >= 2 && (loc[1] || loc[2])){
         const city = loc[2] || loc[1] || '';
         const coords = CITY_COORDS[city] || (loc[1] && CITY_COORDS[loc[1]]);
         if(coords) return { lat:coords[0], lon:coords[1], city };
-        return { lat:DEFAULT_LOC.lat, lon:DEFAULT_LOC.lon, city };
+        // 城市无坐标：不直接兜底江门，继续走 ipinfo 拿真实经纬度（国外城市更准）
       }
     }
   }catch(e){}
-  // ② ipinfo.io（海外源备选，有经纬度）
+  // ② ipinfo.io（海外源备选，有经纬度，免 token）
   try{
     const r = await fetch(IP_URL_CN, {cache:'no-store'});
     if(r.ok){
