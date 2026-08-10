@@ -269,10 +269,8 @@ const GITHUB_RAW = id => 'https://raw.githubusercontent.com/' + GH_REPOS[id];
 const PROXYED = id => PROXY_URL + encodeURIComponent(GITHUB_RAW(id));
 
 async function fetchSmart(id){
-  // market（高频 30 分钟更新）→ proxy 优先保实时；qiuge/lede（低频）→ jsdelivr 优先保速度
-  const order = id === 'market'
-    ? ['proxy','jsdelivr','raw']
-    : ['jsdelivr','proxy','raw'];
+  // 全部 proxy 优先（无缓存保实时）；raw 次之；jsdelivr 最后兜底（有 12h 缓存，仅当前两者都挂时才用，宁旧勿无）
+  const order = ['proxy','raw','jsdelivr'];
   const urls = { jsdelivr:JSDELIVR(id), proxy:PROXYED(id), raw:GITHUB_RAW(id) };
   for(const k of order){
     try{
