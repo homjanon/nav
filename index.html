@@ -265,7 +265,7 @@ const GH_REPOS = {
   lede:   'homjanon/portfolio@main/docs/daily-report.md'
 };
 const JSDELIVR = id => 'https://cdn.jsdelivr.net/gh/' + GH_REPOS[id];
-const GITHUB_RAW = id => 'https://raw.githubusercontent.com/' + GH_REPOS[id];
+const GITHUB_RAW = id => 'https://raw.githubusercontent.com/' + GH_REPOS[id].replace('@', '/');
 const PROXYED = id => PROXY_URL + encodeURIComponent(GITHUB_RAW(id));
 
 async function fetchSmart(id){
