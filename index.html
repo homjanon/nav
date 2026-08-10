@@ -40,8 +40,8 @@
   .xxfi-top{display:flex;align-items:baseline;gap:10px;margin-bottom:6px}
   .xxfi-num{font-size:40px;font-weight:800;line-height:1}
   .xxfi-badge{font-size:12px;font-weight:700;color:#fff;border-radius:999px;padding:3px 10px}
-  .b-buy{background:var(--down)} .b-acc{background:#3aa0ff}
-  .b-hold{background:var(--neutral)} .b-red{background:var(--greed)} .b-sell{background:var(--up)}
+  .b-buy{background:var(--up)} .b-acc{background:#3aa0ff}
+  .b-hold{background:var(--neutral)} .b-red{background:#d85a30} .b-sell{background:var(--down)}
   .xxfi-label{font-size:12px;color:var(--sub);margin-bottom:14px}
   .gauge{height:8px;background:var(--line);border-radius:4px;position:relative;margin-bottom:10px}
   .gauge-fill{position:absolute;left:0;top:0;bottom:0;border-radius:4px;transition:width .6s ease}
@@ -167,7 +167,7 @@
           <span class="xxfi-badge b-hold" id="xxfiBadge">加载中</span>
         </div>
         <div class="xxfi-label">小旭恐惧指数 XXFI · 反向情绪指标</div>
-        <div class="gauge-scale"><span>极度恐惧</span><span>中性</span><span>极度贪婪</span></div>
+        <div class="gauge-scale"><span>极度贪婪</span><span>中性</span><span>极度恐惧</span></div>
         <div class="gauge"><div class="gauge-fill" id="xxfiGauge" style="width:50%;background:var(--neutral)"></div></div>
         <div class="xxfi-advice" id="xxfiAdvice">加载中…</div>
         <!-- VIX 恐慌指数 -->
@@ -301,8 +301,9 @@ async function loadMarketLive(){
       badge.textContent = sig;
       badge.className = 'xxfi-badge ' + ({BUY:'b-buy',ACCUMULATE:'b-acc',HOLD:'b-hold',REDUCE:'b-red',SELL:'b-sell'}[sig]||'b-hold');
       const gauge = document.getElementById('xxfiGauge');
+      // 数值越大越恐惧 → 进度条从左(贪婪)到右(恐惧)，与 VIX 同向
       gauge.style.width = Math.max(0,Math.min(100,v)) + '%';
-      gauge.style.background = v>=75?'var(--down)':v>=60?'#3aa0ff':v>=40?'var(--neutral)':v>=25?'var(--greed)':'var(--up)';
+      gauge.style.background = v>=75?'var(--up)':v>=60?'#d85a30':v>=40?'var(--neutral)':v>=25?'#3aa0ff':'var(--down)';
       document.getElementById('xxfiAdvice').textContent = (xxfi.level||'') + '。' + (xxfi.advice||'').split('。')[0] + '。';
     }
 
