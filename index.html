@@ -397,7 +397,7 @@ async function loadLede(){
     const md = await r.text();
     const m = md.match(/\*\*今日定性导语\*\*[:：]\s*([^\n]+)/);
     if(m && m[1]){
-      document.getElementById('ledeText').textContent = m[1].trim();
+      document.getElementById('ledeText').textContent = m[1].trim().replace(/\*\*/g, '');
       document.getElementById('ledeBar').style.display = 'block';
       // 从标题提取日期，如「全球金融资讯日报 | 2026年8月8日 星期六」
       const dm = md.match(/\|?\s*(\d{4})年(\d{1,2})月(\d{1,2})日/);
