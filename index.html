@@ -386,7 +386,7 @@ async function loadQG(){
     let hh = '';
     if(hd.length){
       hh += '<div class="qg-sec"><div class="qg-sec-name">持仓管理 <small>holdings</small></div>';
-      hh += hd.map(p=>'<div class="qg-pick-row"><span class="nm">'+esc(p.name)+'</span><span class="act">'+esc(p.action||'')+'</span><span class="pos">'+esc(p.position||'')+'</span></div>').join('');
+      hh += hd.map(p=>'<div class="qg-pick-row"><span class="nm">'+esc(p.name)+'</span><span class="act">'+esc(p.action||'')+'</span></div>').join('');  // 公开页不展示仓位数量
       hh += '</div>';
     }
     document.getElementById('qgHoldings').innerHTML = hh;
