@@ -194,6 +194,7 @@
         </div>
         <div class="qg-levels" id="qgLevels"></div>
         <div class="qg-picks-detail" id="qgPicks"></div>
+        <div class="qg-picks-detail" id="qgHoldings"></div>
         <div class="qg-sec">
           <div class="qg-sec-name">观望 <small>watch</small></div>
           <div class="chips" id="qgWatch"></div>
@@ -380,6 +381,15 @@ async function loadQG(){
         d.picks_name.map(n=>'<span class="chip pick">'+esc(n)+'</span>').join('')+'</div></div>';
     }
     document.getElementById('qgPicks').innerHTML = ph;
+    // 持仓管理（holdings，2026-08-22 起 picks/holdings 分离：招行等持仓动作移到这里）
+    const hd = d.holdings||[];
+    let hh = '';
+    if(hd.length){
+      hh += '<div class="qg-sec"><div class="qg-sec-name">持仓管理 <small>holdings</small></div>';
+      hh += hd.map(p=>'<div class="qg-pick-row"><span class="nm">'+esc(p.name)+'</span><span class="act">'+esc(p.action||'')+'</span><span class="pos">'+esc(p.position||'')+'</span></div>').join('');
+      hh += '</div>';
+    }
+    document.getElementById('qgHoldings').innerHTML = hh;
     const w = d.watch||[];
     document.getElementById('qgWatch').innerHTML = w.length?w.map(x=>'<span class="chip watch">'+esc(x)+'</span>').join(''):'<span class="chip">—</span>';
     if(d.outlook){
