@@ -70,17 +70,26 @@
 
 - 等级排序：红 > 橙 > 黄 > 蓝
 
-### IP 定位（三层保险）
+### IP 定位（三层保险，全失败不显示天气行）
 
-1. `myip.ipip.net/json`（国内权威 IP 库，https + CORS 全开，精确到市）—— 主源
+1. `api.vore.top/api/IPdata`（**主源**，中文省/市/区三级 + 市级 adcode，CORS 全开）—— 支持区县级定位
 
-2. `ipinfo.io`（海外源，有经纬度）—— 备源
+2. `myip.ipip.net/json`（国内权威 IP 库，https + CORS 全开，精确到市）—— 备源
 
-3. 固定坐标—— 最终兜底
+3. `ipinfo.io`（海外源，有经纬度，英文城市名）—— 国外 IP 时才会用到
+
+> 三层全部失败时天气行**直接不显示**（与台风/预警失败行为一致，无固定兜底坐标）。
 
 > ⚠️ **ipip.net 只返回城市名不返回经纬度** → 内置 60+ 常用城市坐标表（全国省会 +地级市 + 港澳台）按城市名匹配坐标，再喂给 Open-Meteo 取天气。
 
-> 曾用 `ip-api.com` 作备源，但免费版仅支持 http（https 返回 403），https 页面会被浏览器拦混合内容，故弃用。
+### 区县级天气（2026-08-30 起）
+
+- vore 主源返回区县名（如「蓬江区」）时，拉取**阿里 DataV GeoAtlas** 公开数据 `geo.datav.aliyun.com/areas_v3/bound/{市级adcode}_full.json`（免 key，CORS 全开）→ 前缀匹配区县中文名（vore「龙岗」↔ DataV「龙岗区」）→ 取区县中心坐标喂 Open-Meteo
+- DataV 结果按 `sessionStorage` **当日缓存**（同一城市一天只拉一次，69~162KB）
+- 显示格式：有区县 → `📍 江门·蓬江 今日 …`（自动去尾部「区/县/旗」字）；匹配失败/无区名 → 回落市级 `📍 深圳 今日 …`（宁缺毋错）
+- 国内城市恒中文（vore/ipip 均中文源）；ipinfo 仅国外 IP 触发
+
+> 曾用 `ip-api.com` 作备源，但免费版仅支持 http（https 返回 403），https 页面会被浏览器拦混合内容，故弃用。百度千帆 `qifu-api.baidubce.com` district 接口已下线（ResourceNotFound），不可用。
 
 ### 每日一句
 
@@ -138,7 +147,7 @@
 | 今日速览 | nmc 预警（广东/重庆） | **经代理** | HTTP 无 CORS 源 |
 | 今日速览 | 天气（open-meteo） | **代理优先** → 失败直连 | 国外 API |
 | 今日速览 | 台风（浙江水利） | 国内直连 | 快源 0.2s 无需代理 |
-| 今日速览 | IP 定位（ipip.net / ipinfo） | 国内直连 | 必须看真实出口 IP |
+| 今日速览 | IP 定位（vore.top / ipip.net / ipinfo）+ DataV 区县坐标 | 国内直连 | 必须看真实出口 IP |
 | 今日速览 | 每日一句（hitokoto） | 国内直连 | 快源无需代理 |
 
 ### GitHub 数据源加速（国内直连 GitHub 常超时）

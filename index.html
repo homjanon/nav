@@ -430,10 +430,10 @@ function setDate(){
 }
 
 /* ===== 每日速览（预警区 → 天气 → 每日一句） ===== */
-// 天气：IP 定位（三层保险：ipip.net国内源 → ipinfo → 江门兜底）
+// 天气：IP 定位（三层保险：vore.top区县级中文 → ipip.net市级中文 → ipinfo海外英文）；全失败不显示天气行
 const IP_URL = 'https://myip.ipip.net/json';              // 国内权威库，精确到市，CORS 全开
 const IP_URL_CN = 'https://ipinfo.io/json';              // 海外源备选（有经纬度，免 token）
-const DEFAULT_LOC = { lat:22.5833, lon:113.0833, city:'江门' };
+const VORE_URL = 'https://api.vore.top/api/IPdata';      // 主源：中文省/市/区三级 + 市级 adcode，CORS 全开
 // 常用城市坐标表（ipip 只给城市名不给经纬度，按名匹配）
 const CITY_COORDS = {
   '江门':[22.5833,113.0833],'广州':[23.13,113.26],'深圳':[22.55,114.06],'珠海':[22.27,113.58],
@@ -455,8 +455,48 @@ const CITY_COORDS = {
 function makeWeatherURL(lat, lon){
   return 'https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lon+'&current=temperature_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=Asia%2FShanghai&forecast_days=1';
 }
+// 区县级定位：vore 返回 info2(市)/info3(区县) + adcode.a(市级码)，
+// 用阿里 DataV GeoAtlas 的 {市级adcode}_full.json 查区县中心坐标（sessionStorage 当日缓存，同市只拉一次）。
+// 名称匹配：vore「龙岗」vs DataV「龙岗区」→ 前缀包含匹配；匹配失败回落市级坐标（显示市名，宁缺毋错）。
+async function districtCoords(cityAdcode, district){
+  try{
+    const today = new Date(Date.now()+8*3600*1000).toISOString().slice(0,10);
+    const ck = 'datav_' + cityAdcode + '_' + today;
+    let feats = null;
+    const cached = sessionStorage.getItem(ck);
+    if(cached){ feats = JSON.parse(cached); }
+    else{
+      const r = await fetch('https://geo.datav.aliyun.com/areas_v3/bound/' + cityAdcode + '_full.json', {cache:'no-store'});
+      if(!r.ok) return null;
+      const d = await r.json();
+      feats = (d.features || []).map(f => ({ name:f.properties.name, center:f.properties.center }));
+      try{ sessionStorage.setItem(ck, JSON.stringify(feats)); }catch(e){}
+    }
+    const hit = feats.find(f => f.center && (f.name === district || f.name.startsWith(district) || district.startsWith(f.name)));
+    return hit ? { lat:hit.center[1], lon:hit.center[0] } : null;
+  }catch(e){ return null; }
+}
 async function locate(){
-  // ① ipip.net（国内权威：location: ["中国","广东","江门","","移动"]；国外 IP 时 ["美国","美国","","","cloudflare.com"]）
+  // ① vore.top（区县级中文主源：ipdata.info2=市 info3=区县；adcode.a=市级码；国外 IP 时 cnip=false）
+  try{
+    const r = await fetch(VORE_URL, {cache:'no-store'});
+    if(r.ok){
+      const d = await r.json();
+      const ipd = d && d.ipdata, adc = d && d.adcode;
+      if(ipd && adc && adc.a && ipd.info2 && d.ipinfo && d.ipinfo.cnip){
+        const city = String(ipd.info2).replace(/市$/,'');
+        // 有区县名 → 查 DataV 区县中心坐标（失败自动回落市级）
+        if(ipd.info3){
+          const dc = await districtCoords(adc.a, ipd.info3);
+          if(dc) return { lat:dc.lat, lon:dc.lon, city, district: ipd.info3 };
+        }
+        // 无区县名或区县匹配失败 → 市级坐标表
+        const coords = CITY_COORDS[city];
+        if(coords) return { lat:coords[0], lon:coords[1], city };
+      }
+    }
+  }catch(e){}
+  // ② ipip.net（市级中文：location: ["中国","广东","江门","","移动"]；国外 IP 时 ["美国","美国","","","cloudflare.com"]）
   try{
     const r = await fetch(IP_URL, {cache:'no-store'});
     if(r.ok){
@@ -466,11 +506,11 @@ async function locate(){
         const city = loc[2] || loc[1] || '';
         const coords = CITY_COORDS[city] || (loc[1] && CITY_COORDS[loc[1]]);
         if(coords) return { lat:coords[0], lon:coords[1], city };
-        // 城市无坐标：不直接兜底江门，继续走 ipinfo 拿真实经纬度（国外城市更准）
+        // 城市无坐标：不兜底，继续走 ipinfo 拿真实经纬度（国外城市更准）
       }
     }
   }catch(e){}
-  // ② ipinfo.io（海外源备选，有经纬度，免 token）
+  // ③ ipinfo.io（海外源备选，有经纬度，免 token）
   try{
     const r = await fetch(IP_URL_CN, {cache:'no-store'});
     if(r.ok){
@@ -479,7 +519,7 @@ async function locate(){
       if(ll.length===2 && ll[0] && ll[1]) return { lat:ll[0], lon:ll[1], city: d.city||'' };
     }
   }catch(e){}
-  return DEFAULT_LOC;
+  return null;  // 三层全失败：不显示天气行（与台风/预警失败行为一致）
 }
 const TYPHOON_URL = 'https://typhoon.slt.zj.gov.cn/Api/TyhoonActivity';
 // nmc.cn 预警（HTTP，经 proxy 转发；PROXY_URL 已在顶部定义）— 关注地：广东江门 + 重庆万州
@@ -570,6 +610,7 @@ async function loadDailyLine(){
   const fetchWeather = async () => {
     try{
       const loc = await locate();
+      if(!loc) return {resp:null, loc:null};  // 定位三层全失败：不显示天气行
       const url = makeWeatherURL(loc.lat, loc.lon);
       // 天气走 proxy 加速（Open-Meteo 为国外源，国内直连慢）
       const r = await fetch(PROXY_URL + encodeURIComponent(url), {cache:'no-store'});
@@ -627,7 +668,10 @@ async function loadDailyLine(){
       const wcode = cur.weather_code != null ? cur.weather_code : day.weather_code?.[0];
       const wtxt = WMO[wcode] || '晴';
       const wind = cur.wind_speed_10m != null ? Math.round(cur.wind_speed_10m) : null;
-      let s = `<span class="ic">☀️</span><b>${loc.city||'当地'}今日 ${wtxt}</b>`;
+      // 显示「市·区」且去掉区名尾部「区/县/旗」字（如 江门·蓬江 / 重庆·万州）
+      const dShort = loc.district ? loc.district.replace(/[区县旗]$/,'') : '';
+      const placeName = dShort ? (loc.city + '·' + dShort) : (loc.city || '当地');
+      let s = `<span class="ic">☀️</span><b>${placeName}今日 ${wtxt}</b>`;
       if(tmin != null && tmax != null) s += ` · ${tmin}~${tmax}℃`;
       if(wind != null) s += ` · 风 ${wind}km/h`;
       lines.push(`<div class="daily-line">${s}</div>`);
