@@ -476,23 +476,47 @@ async function districtCoords(cityAdcode, district){
     return hit ? { lat:hit.center[1], lon:hit.center[0] } : null;
   }catch(e){ return null; }
 }
-async function locate(){
-  // ① vore.top（区县级中文主源：ipdata.info2=市 info3=区县；adcode.a=市级码；国外 IP 时 cnip=false）
+// 取本机出口 IP（IPv4/IPv6 皆可）：ipinfo 优先（有 ip 字段），ipip 兜底。返回 null 表示获取失败。
+async function getLocalIp(){
   try{
-    const r = await fetch(VORE_URL, {cache:'no-store'});
+    const r = await fetch(IP_URL_CN, {cache:'no-store'});
+    if(r.ok){
+      const d = await r.json();
+      if(d && d.ip) return String(d.ip);
+    }
+  }catch(e){}
+  try{
+    const r = await fetch(IP_URL, {cache:'no-store'});
+    if(r.ok){
+      const d = await r.json();
+      if(d && d.data && d.data.ip) return String(d.data.ip);
+    }
+  }catch(e){}
+  return null;
+}
+async function locate(){
+  // ① vore.top（区县级中文主源）：显式携带本机出口 IP 查询（IPv6 出口走 IPv6 库，区县更准；IPv4 走 IPv4 库）
+  //    判定：仅当地名为「中国省/市/区」结构（info1 以"省"结尾 或 info3 有区县名）才采用；国外地名自然跳过。
+  try{
+    const myip = await getLocalIp();
+    const r = await fetch(myip ? (VORE_URL + '?ip=' + encodeURIComponent(myip)) : VORE_URL, {cache:'no-store'});
     if(r.ok){
       const d = await r.json();
       const ipd = d && d.ipdata, adc = d && d.adcode;
-      if(ipd && adc && adc.a && ipd.info2 && d.ipinfo && d.ipinfo.cnip){
+      const isCN = !!ipd && /(?:省|市)$/.test(String(ipd.info1||''));  // 省/直辖市（重庆市）均视为国内
+      if(isCN && ipd && ipd.info2){
         const city = String(ipd.info2).replace(/市$/,'');
         // 有区县名 → 查 DataV 区县中心坐标（失败自动回落市级）
         if(ipd.info3){
-          const dc = await districtCoords(adc.a, ipd.info3);
-          if(dc) return { lat:dc.lat, lon:dc.lon, city, district: ipd.info3 };
+          if(adc && adc.a){
+            const dc = await districtCoords(adc.a, ipd.info3);
+            if(dc) return { lat:dc.lat, lon:dc.lon, city, district: ipd.info3 };
+          }
         }
-        // 无区县名或区县匹配失败 → 市级坐标表
+        // 无区县名 / adcode 缺失 / 区县匹配失败 → 市级坐标表
         const coords = CITY_COORDS[city];
         if(coords) return { lat:coords[0], lon:coords[1], city };
+        // 内置表无此市：若区县名存在但拿不到坐标,继续 ipip
       }
     }
   }catch(e){}
