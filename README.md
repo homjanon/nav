@@ -84,9 +84,9 @@
 
 ### 区县级天气（2026-08-30 起）
 
-- vore 主源返回区县名（如「蓬江区」）时，拉取**阿里 DataV GeoAtlas** 公开数据 `geo.datav.aliyun.com/areas_v3/bound/{市级adcode}_full.json`（免 key，CORS 全开）→ 前缀匹配区县中文名（vore「龙岗」↔ DataV「龙岗区」）→ 取区县中心坐标喂 Open-Meteo
+- vore 主源返回区县名（如「越秀区」）时，拉取**阿里 DataV GeoAtlas** 公开数据 `geo.datav.aliyun.com/areas_v3/bound/{市级adcode}_full.json`（免 key，CORS 全开）→ 前缀匹配区县中文名（vore「龙岗」↔ DataV「龙岗区」）→ 取区县中心坐标喂 Open-Meteo
 - DataV 结果按 `sessionStorage` **当日缓存**（同一城市一天只拉一次，69~162KB）
-- 显示格式：有区县 → `📍 江门·蓬江 今日 …`（自动去尾部「区/县/旗」字）；匹配失败/无区名 → 回落市级 `📍 深圳 今日 …`（宁缺毋错）
+- 显示格式：有区县 → `📍 广州·越秀 今日 …`（自动去尾部「区/县/旗」字）；匹配失败/无区名 → 回落市级 `📍 深圳 今日 …`（宁缺毋错）
 - 国内城市恒中文（vore/ipip 均中文源）；ipinfo 仅国外 IP 触发
 
 > 曾用 `ip-api.com` 作备源，但免费版仅支持 http（https 返回 403），https 页面会被浏览器拦混合内容，故弃用。百度千帆 `qifu-api.baidubce.com` district 接口已下线（ResourceNotFound），不可用。
