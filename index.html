@@ -511,12 +511,12 @@ async function locate(){
         if(ipd.info3){
           if(adc && adc.a){
             const dc = await districtCoords(adc.a, ipd.info3);
-            if(dc) return { lat:dc.lat, lon:dc.lon, city, district: ipd.info3 };
+            if(dc) return { lat:dc.lat, lon:dc.lon, city, district: ipd.info3, province: String(ipd.info1||'') };
           }
         }
         // 无区县名 / adcode 缺失 / 区县匹配失败 → 市级坐标表
         const coords = CITY_COORDS[city];
-        if(coords) return { lat:coords[0], lon:coords[1], city };
+        if(coords) return { lat:coords[0], lon:coords[1], city, province: String(ipd.info1||'') };
       }
     }catch(e){}
     return null;
@@ -539,7 +539,7 @@ async function locate(){
       if(Array.isArray(loc) && loc.length >= 2 && (loc[1] || loc[2])){
         const city = loc[2] || loc[1] || '';
         const coords = CITY_COORDS[city] || (loc[1] && CITY_COORDS[loc[1]]);
-        if(coords) return { lat:coords[0], lon:coords[1], city };
+        if(coords) return { lat:coords[0], lon:coords[1], city, province: String(loc[1]||'') };
         // 城市无坐标：不兜底，继续走 ipinfo 拿真实经纬度（国外城市更准）
       }
     }
@@ -550,7 +550,7 @@ async function locate(){
     if(r.ok){
       const d = await r.json();
       const ll = String(d.loc||'').split(',').map(Number);
-      if(ll.length===2 && ll[0] && ll[1]) return { lat:ll[0], lon:ll[1], city: d.city||'' };
+      if(ll.length===2 && ll[0] && ll[1]) return { lat:ll[0], lon:ll[1], city: d.city||'', province: String(d.region||'') };
     }
   }catch(e){}
   return null;  // 三层全失败：不显示天气行（与台风/预警失败行为一致）
@@ -657,13 +657,16 @@ async function loadDailyLine(){
     try{ return await hitokotoPick(); }catch(e){ return null; }
   };
 
-  // 四路并行：台风 / 广东预警 / 重庆预警 / 天气+每日一句
-  const [typhoon, gdAlarms, cqAlarms, [wresult, quote]] = await Promise.all([
+  // 定位先行（只跑一次）：loc 同时驱动 天气 + 预警。先并行拿台风/天气/每日一句，同时定位；
+  // 拿到定位后再按「定位省市县」查对应省份的预警并过滤。
+  const [typhoon, wresult, quote, weatherLoc] = await Promise.all([
     fetchTyphoon(),
-    fetchAlarms('广东'),
-    fetchAlarms('重庆'),
-    Promise.all([fetchWeather(), fetchQuote()])
+    fetchWeather(),
+    fetchQuote(),
+    locate()        // 与天气共用同一份定位（vore区县/IPIP市级/ipinfo）
   ]);
+  // 若 fetchWeather 内部已定位成功，则用它的 loc；否则用 weatherLoc（定位同一份，二者等价）
+  const loc = (wresult && wresult.loc) || weatherLoc;
 
   if(typhoon){
     const t = typhoon;
@@ -675,21 +678,35 @@ async function loadDailyLine(){
   const renderAlarm = (al) => {
     const lv = alarmLevel(al.title);
     const type = (al.title.match(/发布(.+?)预警/) || [,'预警'])[1];
-    const city = (al.title.match(/(?:省)(.+?市)气象台/) || [,''])[1] || (al.title.match(/^(?:重庆市)/) ? '重庆' : '');
+    // 地名标注与天气一致：区县级标题（「XX市XX区/县气象台」）→ 显示区县名（去尾区/县字）；否则显示市级名
+    const mDist = al.title.match(/(?:市)([^市]+(?:区|县|旗))气象台/);
+    let place = mDist ? mDist[1].replace(/[区县旗]$/,'') : (al.title.match(/(?:省)(.+?市)气象台/) || [,''])[1] || (al.title.match(/^(?:重庆市)/) ? '重庆' : '');
     const bg = lv.tagCls==='red'?'#e24b4a':lv.tagCls==='orange'?'#f0997b':lv.tagCls==='yellow'?'#e6b84c':'#5aa7e0';
-    lines.push(`<div class="daily-line ${lv.cls}"><span class="ic">🔶</span><span class="dl-tag ${lv.tagCls}" style="${lv.tag?('background:'+bg):''}">${lv.tag||'警'}</span><b>${type}预警</b>${lv.tag?('（'+lv.tag+'色）'):''}${city?(' · '+city):''} · ${al.title.replace(/[^·]*气象台发布.+预警信号/,'').trim()||'注意防范'}</div>`);
+    lines.push(`<div class="daily-line ${lv.cls}"><span class="ic">🔶</span><span class="dl-tag ${lv.tagCls}" style="${lv.tag?('background:'+bg):''}">${lv.tag||'警'}</span><b>${type}预警</b>${lv.tag?('（'+lv.tag+'色）'):''}${place?(' · '+place):''} · ${al.title.replace(/[^·]*气象台发布.+预警信号/,'').trim()||'注意防范'}</div>`);
   };
 
-  // 江门：广东预警中「江门市气象台」发布的市级预警，取最严重一条
-  const jm = gdAlarms.filter(a => /江门市气象台/.test(a.title)).sort((a,b)=>levelRank(b.title)-levelRank(a.title))[0];
-  if(jm) renderAlarm(jm);
-
-  // 重庆万州：优先万州；无万州则取「重庆市气象台」市级；再无则不显示
-  let cqPick = cqAlarms.filter(a => /万州/.test(a.title)).sort((a,b)=>levelRank(b.title)-levelRank(a.title))[0];
-  if(!cqPick){
-    cqPick = cqAlarms.filter(a => /^重庆市气象台/.test(a.title)).sort((a,b)=>levelRank(b.title)-levelRank(a.title))[0];
+  // 预警跟随定位：查 loc.province 对应省份，再按「市/区县」过滤（区县级优先，回落市级）
+  if(loc && loc.province && loc.city){
+    const provParam = String(loc.province).replace(/省$/,'');            // 「广东省」→「广东」
+    const allAlarms = await fetchAlarms(provParam);                        // 按定位省份查
+    // 1) 优先区县级：定位到区县(district)且有「市+区县气象台」
+    let pick = null;
+    if(loc.district){
+      // 真实标题格式如「广东省江门市蓬江区气象台」：市名后必有「市」字；
+      // district 本身已带尾字（蓬江区/罗湖区/万州区），故在其「前」去尾字再补可选尾字组，
+      // 兼容 vore 返回「蓬江」（无尾字）与「蓬江区」（带尾字）两种情况
+      const distBase = loc.district.replace(/[区县旗]$/,'');
+      const distTitle = loc.city + '市' + distBase + '(?:区|县|旗)?气象台';   // 「江门市蓬江区气象台」或「江门市蓬江气象台」均可命中
+      pick = allAlarms.filter(a => new RegExp(distTitle).test(a.title)).sort((a,b)=>levelRank(b.title)-levelRank(a.title))[0];
+    }
+    // 2) 回落市级：「市气象台」（如「江门市气象台」「重庆市气象台」）
+    if(!pick){
+      const cityTitle = loc.city + '市气象台';
+      pick = allAlarms.filter(a => a.title.includes(cityTitle)).sort((a,b)=>levelRank(b.title)-levelRank(a.title))[0];
+    }
+    // 3) 定位省份无预警 或 过滤无命中 → 不显示（宁缺毋错，与天气一致）
+    if(pick) renderAlarm(pick);
   }
-  if(cqPick) renderAlarm(cqPick);
 
   // ② 今日天气（独立行：IP 定位 → proxy → open-meteo）
   const wresp = wresult && wresult.resp;
