@@ -495,12 +495,13 @@ async function getLocalIp(){
   return null;
 }
 async function locate(){
-  // ① vore.top（区县级中文主源）：显式携带本机出口 IP 查询（IPv6 出口走 IPv6 库，区县更准；IPv4 走 IPv4 库）
-  //    判定：仅当地名为「中国省/市/区」结构（info1 以"省"结尾 或 info3 有区县名）才采用；国外地名自然跳过。
-  try{
-    const myip = await getLocalIp();
-    const r = await fetch(myip ? (VORE_URL + '?ip=' + encodeURIComponent(myip)) : VORE_URL, {cache:'no-store'});
-    if(r.ok){
+  // ① vore.top（区县级中文主源）：双路尝试 —— 先显式携带本机出口 IP 查询（IPv6 出口走 IPv6 库，区县更准），
+  //    取 IP 失败再退回 vore 自判出口。判定：仅当地名为「省/直辖市/区」结构（info1 以 省/市 结尾或 info3 有值）才采用，
+  //    国外地名（新西兰/奥克兰）自然跳过。
+  const tryVore = async (url) => {
+    try{
+      const r = await fetch(url, {cache:'no-store'});
+      if(!r.ok) return null;
       const d = await r.json();
       const ipd = d && d.ipdata, adc = d && d.adcode;
       const isCN = !!ipd && /(?:省|市)$/.test(String(ipd.info1||''));  // 省/直辖市（重庆市）均视为国内
@@ -516,9 +517,18 @@ async function locate(){
         // 无区县名 / adcode 缺失 / 区县匹配失败 → 市级坐标表
         const coords = CITY_COORDS[city];
         if(coords) return { lat:coords[0], lon:coords[1], city };
-        // 内置表无此市：若区县名存在但拿不到坐标,继续 ipip
       }
+    }catch(e){}
+    return null;
+  };
+  try{
+    const myip = await getLocalIp();
+    if(myip){
+      const hit = await tryVore(VORE_URL + '?ip=' + encodeURIComponent(myip));
+      if(hit) return hit;
     }
+    const hit2 = await tryVore(VORE_URL);   // 取 IP 失败 或 带 IP 未命中 → 退回 vore 自判出口
+    if(hit2) return hit2;
   }catch(e){}
   // ② ipip.net（市级中文：location: ["中国","广东","江门","","移动"]；国外 IP 时 ["美国","美国","","","cloudflare.com"]）
   try{
@@ -546,9 +556,10 @@ async function locate(){
   return null;  // 三层全失败：不显示天气行（与台风/预警失败行为一致）
 }
 const TYPHOON_URL = 'https://typhoon.slt.zj.gov.cn/Api/TyhoonActivity';
-// nmc.cn 预警（HTTP，经 proxy 转发；PROXY_URL 已在顶部定义）— 关注地：广东江门 + 重庆万州
+// nmc.cn 预警（https 直连，CORS 全开实测可用；勿用 PROXY_URL 转发 http——Worker 已对 http 目标失效）
+// — 关注地：广东江门 + 重庆万州
 function nmcUrl(province){
-  return PROXY_URL + encodeURIComponent('http://www.nmc.cn/rest/findAlarm?pageNo=1&pageSize=30&signaltype=&signallevel=&province=' + encodeURIComponent(province));
+  return 'https://www.nmc.cn/rest/findAlarm?pageNo=1&pageSize=30&signaltype=&signallevel=&province=' + encodeURIComponent(province);
 }
 // 一言（每日一句）
 const HITOKOTO_URL = 'https://v1.hitokoto.cn/?c=k&c=i&c=a&c=d&c=w&encode=json';
