@@ -139,6 +139,19 @@
   .daily-line .dl-tag{display:inline-block;font-size:10px;border-radius:4px;padding:1px 6px;margin-right:8px;vertical-align:1px;color:#fff}
   .dl-tag.red{background:#e24b4a}.dl-tag.orange{background:#f0997b}.dl-tag.yellow{background:#e6b84c}
 
+  /* 60s 每日新闻卡片（一条卡片内多条，移动端友好） */
+  .news-card{
+    background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:12px 16px 10px;margin-bottom:6px;text-align:left;
+  }
+  .news-card-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  .news-card-head b{font-weight:700;color:var(--ink);font-size:14px}
+  .news-card-head .dl-date{font-size:11px;color:var(--sub);margin-left:auto}
+  .news-item{display:flex;gap:8px;font-size:12.5px;color:var(--ink);line-height:1.65;padding:5px 0;border-bottom:1px dashed var(--line)}
+  .news-item:last-child{border-bottom:none;padding-bottom:2px}
+  .news-item .ni-num{flex-shrink:0;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-size:10.5px;display:flex;align-items:center;justify-content:center;margin-top:3px}
+  .news-item .ni-text{flex:1}
+
   /* 数据更新时间标注 */
   .update-note{font-size:10px;color:#b3b9c0;text-align:center;margin:10px auto 0;max-width:720px;line-height:1.6}
 </style>
@@ -429,314 +442,36 @@ function setDate(){
   document.getElementById('todayDate').textContent = s;
 }
 
-/* ===== 每日速览（预警区 → 天气 → 每日一句） ===== */
-// 天气：IP 定位（三层保险：vore.top区县级中文 → ipip.net市级中文 → ipinfo海外英文）；全失败不显示天气行
-const IP_URL = 'https://myip.ipip.net/json';              // 国内权威库，精确到市，CORS 全开
-const IP_URL_CN = 'https://ipinfo.io/json';              // 海外源备选（有经纬度，免 token）
-const VORE_URL = 'https://api.vore.top/api/IPdata';      // 主源：中文省/市/区三级 + 市级 adcode，CORS 全开
-// 常用城市坐标表（ipip 只给城市名不给经纬度，按名匹配）
-const CITY_COORDS = {
-  '江门':[22.5833,113.0833],'广州':[23.13,113.26],'深圳':[22.55,114.06],'珠海':[22.27,113.58],
-  '佛山':[23.02,113.12],'东莞':[23.02,113.75],'中山':[22.52,113.39],'惠州':[23.11,114.42],
-  '肇庆':[23.05,112.47],'清远':[23.68,113.06],'湛江':[21.27,110.36],'茂名':[21.66,110.93],
-  '汕头':[23.35,116.68],'潮州':[23.66,116.62],'揭阳':[23.55,116.37],'汕尾':[22.79,115.37],
-  '梅州':[24.29,116.12],'河源':[23.74,114.70],'阳江':[21.86,111.98],'云浮':[22.92,112.04],
-  '韶关':[24.81,113.60],'北京':[39.90,116.41],'上海':[31.23,121.47],'重庆':[29.56,106.55],
-  '成都':[30.57,104.07],'杭州':[30.27,120.16],'南京':[32.06,118.80],'武汉':[30.59,114.31],
-  '长沙':[28.23,112.94],'福州':[26.07,119.30],'厦门':[24.48,118.09],'南宁':[22.82,108.32],
-  '海口':[20.04,110.32],'昆明':[24.88,102.83],'贵阳':[26.65,106.63],'西安':[34.34,108.94],
-  '郑州':[34.75,113.63],'济南':[36.65,117.12],'青岛':[36.07,120.38],'天津':[39.34,117.36],
-  '太原':[37.87,112.55],'石家庄':[38.04,114.51],'沈阳':[41.81,123.43],'大连':[38.91,121.61],
-  '长春':[43.82,125.32],'哈尔滨':[45.80,126.53],'合肥':[31.82,117.23],'南昌':[28.68,115.86],
-  '兰州':[36.06,103.83],'西宁':[36.62,101.78],'银川':[38.49,106.23],'乌鲁木齐':[43.83,87.62],
-  '呼和浩特':[40.84,111.75],'拉萨':[29.65,91.14],'香港':[22.32,114.17],'澳门':[22.19,113.54],
-  '台北':[25.03,121.57]
-};
-function makeWeatherURL(lat, lon){
-  return 'https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lon+'&current=temperature_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=Asia%2FShanghai&forecast_days=1';
-}
-// 区县级定位：vore 返回 info2(市)/info3(区县) + adcode.a(市级码)，
-// 用阿里 DataV GeoAtlas 的 {市级adcode}_full.json 查区县中心坐标（sessionStorage 当日缓存，同市只拉一次）。
-// 名称匹配：vore「龙岗」vs DataV「龙岗区」→ 前缀包含匹配；匹配失败回落市级坐标（显示市名，宁缺毋错）。
-async function districtCoords(cityAdcode, district){
-  try{
-    const today = new Date(Date.now()+8*3600*1000).toISOString().slice(0,10);
-    const ck = 'datav_' + cityAdcode + '_' + today;
-    let feats = null;
-    const cached = sessionStorage.getItem(ck);
-    if(cached){ feats = JSON.parse(cached); }
-    else{
-      const r = await fetch('https://geo.datav.aliyun.com/areas_v3/bound/' + cityAdcode + '_full.json', {cache:'no-store'});
-      if(!r.ok) return null;
-      const d = await r.json();
-      feats = (d.features || []).map(f => ({ name:f.properties.name, center:f.properties.center }));
-      try{ sessionStorage.setItem(ck, JSON.stringify(feats)); }catch(e){}
-    }
-    const hit = feats.find(f => f.center && (f.name === district || f.name.startsWith(district) || district.startsWith(f.name)));
-    return hit ? { lat:hit.center[1], lon:hit.center[0] } : null;
-  }catch(e){ return null; }
-}
-// 取本机出口 IP（IPv4/IPv6 皆可）：ipinfo 优先（有 ip 字段），ipip 兜底。返回 null 表示获取失败。
-async function getLocalIp(){
-  try{
-    const r = await fetch(IP_URL_CN, {cache:'no-store'});
-    if(r.ok){
-      const d = await r.json();
-      if(d && d.ip) return String(d.ip);
-    }
-  }catch(e){}
-  try{
-    const r = await fetch(IP_URL, {cache:'no-store'});
-    if(r.ok){
-      const d = await r.json();
-      if(d && d.data && d.data.ip) return String(d.data.ip);
-    }
-  }catch(e){}
-  return null;
-}
-async function locate(){
-  // ① vore.top（区县级中文主源）：双路尝试 —— 先显式携带本机出口 IP 查询（IPv6 出口走 IPv6 库，区县更准），
-  //    取 IP 失败再退回 vore 自判出口。判定：仅当地名为「省/直辖市/区」结构（info1 以 省/市 结尾或 info3 有值）才采用，
-  //    国外地名（新西兰/奥克兰）自然跳过。
-  const tryVore = async (url) => {
-    try{
-      const r = await fetch(url, {cache:'no-store'});
-      if(!r.ok) return null;
-      const d = await r.json();
-      const ipd = d && d.ipdata, adc = d && d.adcode;
-      const isCN = !!ipd && /(?:省|市)$/.test(String(ipd.info1||''));  // 省/直辖市（重庆市）均视为国内
-      if(isCN && ipd && ipd.info2){
-        const city = String(ipd.info2).replace(/市$/,'');
-        // 有区县名 → 查 DataV 区县中心坐标（失败自动回落市级）
-        if(ipd.info3){
-          if(adc && adc.a){
-            const dc = await districtCoords(adc.a, ipd.info3);
-            if(dc) return { lat:dc.lat, lon:dc.lon, city, district: ipd.info3, province: String(ipd.info1||'') };
-          }
-        }
-        // 无区县名 / adcode 缺失 / 区县匹配失败 → 市级坐标表
-        const coords = CITY_COORDS[city];
-        if(coords) return { lat:coords[0], lon:coords[1], city, province: String(ipd.info1||'') };
-      }
-    }catch(e){}
-    return null;
-  };
-  try{
-    const myip = await getLocalIp();
-    if(myip){
-      const hit = await tryVore(VORE_URL + '?ip=' + encodeURIComponent(myip));
-      if(hit) return hit;
-    }
-    const hit2 = await tryVore(VORE_URL);   // 取 IP 失败 或 带 IP 未命中 → 退回 vore 自判出口
-    if(hit2) return hit2;
-  }catch(e){}
-  // ② ipip.net（市级中文：location: ["中国","广东","江门","","移动"]；国外 IP 时 ["美国","美国","","","cloudflare.com"]）
-  try{
-    const r = await fetch(IP_URL, {cache:'no-store'});
-    if(r.ok){
-      const d = await r.json();
-      const loc = d && d.data && d.data.location;
-      if(Array.isArray(loc) && loc.length >= 2 && (loc[1] || loc[2])){
-        const city = loc[2] || loc[1] || '';
-        const coords = CITY_COORDS[city] || (loc[1] && CITY_COORDS[loc[1]]);
-        if(coords) return { lat:coords[0], lon:coords[1], city, province: String(loc[1]||'') };
-        // 城市无坐标：不兜底，继续走 ipinfo 拿真实经纬度（国外城市更准）
-      }
-    }
-  }catch(e){}
-  // ③ ipinfo.io（海外源备选，有经纬度，免 token）
-  try{
-    const r = await fetch(IP_URL_CN, {cache:'no-store'});
-    if(r.ok){
-      const d = await r.json();
-      const ll = String(d.loc||'').split(',').map(Number);
-      if(ll.length===2 && ll[0] && ll[1]) return { lat:ll[0], lon:ll[1], city: d.city||'', province: String(d.region||'') };
-    }
-  }catch(e){}
-  return null;  // 三层全失败：不显示天气行（与台风/预警失败行为一致）
-}
-const TYPHOON_URL = 'https://typhoon.slt.zj.gov.cn/Api/TyhoonActivity';
-// nmc.cn 预警（https 直连，CORS 全开实测可用；勿用 PROXY_URL 转发 http——Worker 已对 http 目标失效）
-// — 关注地：广东江门 + 重庆万州
-function nmcUrl(province){
-  return 'https://www.nmc.cn/rest/findAlarm?pageNo=1&pageSize=30&signaltype=&signallevel=&province=' + encodeURIComponent(province);
-}
-// 一言（每日一句）
-const HITOKOTO_URL = 'https://v1.hitokoto.cn/?c=k&c=i&c=a&c=d&c=w&encode=json';
-
-const WMO = {
-  0:'晴',1:'基本晴',2:'多云',3:'阴',45:'雾',48:'雾凇',
-  51:'毛毛雨',53:'小雨',55:'中雨',61:'小雨',63:'中雨',65:'大雨',
-  71:'小雪',73:'中雪',75:'大雪',80:'阵雨',81:'强阵雨',82:'暴雨',
-  95:'雷雨',96:'雷雨伴冰雹',99:'强雷暴'
-};
-
-// 每日一句兜底池（一言失败时用）
-const ROTATE_POOL = [
-  '🌤 今日宜专注：先啃最难的那块骨头，其余自然顺遂。',
-  '📖 一句老话：「财不入急门，福不享躁人」——慢即是快。',
-  '💧 入伏多湿热，记得补水，空调房待久了出去透透气。',
-  '🌙 每晚 23 点前入睡，是对明天最好的投资。',
-  '🎯 今日宜整理：清空一件无关紧要的事，给大脑腾地方。',
-  '🏃 久坐伤身，每 45 分钟起来活动 3 分钟。',
-  '🍵 今日宜品茶：一杯热茶，胜过千言万语。',
-  '🌱 想到就做，别等「合适时机」——时机是干出来的。',
-  '💡 今日提醒：把最重要的三件事写下来，逐一完成。',
-  '🌊 心静自然凉：情绪烦躁时，深呼吸十次再开口。',
-  '📚 书山有路勤为径——今天也读几页书吧。',
-  '☀️ 早起 15 分钟，一天都从容。',
-];
-
-// 每日一句（一言，当日缓存固定）
-async function hitokotoPick(){
-  const today = new Date(Date.now()+8*3600*1000).toISOString().slice(0,10);
-  const k = 'hitokoto_' + today;
-  try{
-    const cached = localStorage.getItem(k);
-    if(cached) return cached;
-    const r = await fetch(HITOKOTO_URL, {cache:'no-store'});
-    if(r.ok){
-      const j = await r.json();
-      if(j && j.hitokoto){
-        let s = '「' + j.hitokoto + '」';
-        if(j.from) s += ' —— ' + j.from + (j.from_who ? '·'+j.from_who : '');
-        localStorage.setItem(k, s);
-        return s;
-      }
-    }
-  }catch(e){}
-  return ROTATE_POOL[Math.floor(Math.random()*ROTATE_POOL.length)];
-}
-
-// 预警等级判定（nmc title 包含 等级+类型）
-function alarmLevel(title){
-  if(/红色/.test(title)) return {cls:'dl-red', tag:'红', tagCls:'red'};
-  if(/橙色/.test(title)) return {cls:'dl-orange', tag:'橙', tagCls:'orange'};
-  if(/黄色/.test(title)) return {cls:'dl-yellow', tag:'黄', tagCls:'yellow'};
-  if(/蓝色/.test(title)) return {cls:'dl-blue', tag:'蓝', tagCls:'blue'};
-  return {cls:'', tag:'', tagCls:''};
-}
-
+/* ===== 每日速览（2026-09-01 起：仅 60s 每日新闻；台风/预警/天气/一言已移除） ===== */
 async function loadDailyLine(){
   const wrap = document.getElementById('dailyWrap');
   const lines = [];
-
-  // 并行获取全部数据（互不等待，各自成功各自显示）
-  const fetchAlarms = async (prov) => {
+  // 仅保留 60s 每日新闻（2026-09-01 起：删台风/预警/天气/一言，化繁为简）
+  const SIXTY_URL = 'https://60s.viki.moe/v2/60s';
+  const fetchNews = async () => {
     try{
-      const r = await fetch(nmcUrl(prov), {cache:'no-store'});
-      if(r.ok){
-        const d = await r.json();
-        return ((d && d.data && d.data.page && d.data.page.list) || []).filter(x => x && x.title);
-      }
-    }catch(e){}
-    return [];
+      const r = await fetch(SIXTY_URL, {cache:'no-store'});
+      if(!r.ok) return null;
+      const d = await r.json();
+      if(d && d.code === 200 && d.data && Array.isArray(d.data.news)) return d.data;
+      return null;
+    }catch(e){ return null; }
   };
-  const fetchTyphoon = async () => {
-    try{
-      const r = await fetch(TYPHOON_URL, {cache:'no-store'});
-      if(r.ok){
-        const list = await r.json();
-        return (list && list.length) ? list[0] : null;
-      }
-    }catch(e){}
-    return null;
-  };
-  const fetchWeather = async () => {
-    try{
-      const loc = await locate();
-      if(!loc) return {resp:null, loc:null};  // 定位三层全失败：不显示天气行
-      const url = makeWeatherURL(loc.lat, loc.lon);
-      // 天气走 proxy 加速（Open-Meteo 为国外源，国内直连慢）
-      const r = await fetch(PROXY_URL + encodeURIComponent(url), {cache:'no-store'});
-      if(!r.ok) return {resp: await fetch(url, {cache:'no-store'}), loc};
-      return {resp: r, loc};
-    }catch(e){ return {resp:null, loc:null}; }
-  };
-  const fetchQuote = async () => {
-    try{ return await hitokotoPick(); }catch(e){ return null; }
-  };
-
-  // 定位先行（只跑一次）：loc 同时驱动 天气 + 预警。先并行拿台风/天气/每日一句，同时定位；
-  // 拿到定位后再按「定位省市县」查对应省份的预警并过滤。
-  const [typhoon, wresult, quote, weatherLoc] = await Promise.all([
-    fetchTyphoon(),
-    fetchWeather(),
-    fetchQuote(),
-    locate()        // 与天气共用同一份定位（vore区县/IPIP市级/ipinfo）
-  ]);
-  // 若 fetchWeather 内部已定位成功，则用它的 loc；否则用 weatherLoc（定位同一份，二者等价）
-  const loc = (wresult && wresult.loc) || weatherLoc;
-
-  if(typhoon){
-    const t = typhoon;
-    lines.push(`<div class="daily-line dl-red"><span class="ic">⚠️</span><span class="dl-tag red">台风</span><b>「${t.name||''}」</b>（${t.strong||''}${t.power?(' '+t.power+'级'):''}）${t.movedirection||''}移动 · ${t.movespeed?('时速'+t.movespeed+'km'):''} · 沿海注意风雨</div>`);
+  const news = await fetchNews();
+  if(news && news.news.length){
+    const date = news.date || '';
+    const items = news.news.slice(0, 5);          // 单卡片内显示最新 5 条
+    let card = '<div class="news-card">';
+    card += `<div class="news-card-head"><span class="ic">📰</span><b>60s 每日新闻</b><small class="dl-date">${date}</small></div>`;
+    items.forEach((t, i) => {
+      card += `<div class="news-item"><span class="ni-num">${i+1}</span><span class="ni-text">${esc(t)}</span></div>`;
+    });
+    card += '</div>';
+    lines.push(card);
   }
-
-  // 预警行渲染：某地有预警才显示该地；显示该地最严重的一条
-  const levelRank = (title) => /红色/.test(title)?4:/橙色/.test(title)?3:/黄色/.test(title)?2:/蓝色/.test(title)?1:0;
-  const renderAlarm = (al) => {
-    const lv = alarmLevel(al.title);
-    const type = (al.title.match(/发布(.+?)预警/) || [,'预警'])[1];
-    // 地名标注与天气一致：区县级标题（「XX市XX区/县气象台」）→ 显示区县名（去尾区/县字）；否则显示市级名
-    const mDist = al.title.match(/(?:市)([^市]+(?:区|县|旗))气象台/);
-    let place = mDist ? mDist[1].replace(/[区县旗]$/,'') : (al.title.match(/(?:省)(.+?市)气象台/) || [,''])[1] || (al.title.match(/^(?:重庆市)/) ? '重庆' : '');
-    const bg = lv.tagCls==='red'?'#e24b4a':lv.tagCls==='orange'?'#f0997b':lv.tagCls==='yellow'?'#e6b84c':'#5aa7e0';
-    lines.push(`<div class="daily-line ${lv.cls}"><span class="ic">🔶</span><span class="dl-tag ${lv.tagCls}" style="${lv.tag?('background:'+bg):''}">${lv.tag||'警'}</span><b>${type}预警</b>${lv.tag?('（'+lv.tag+'色）'):''}${place?(' · '+place):''} · ${al.title.replace(/[^·]*气象台发布.+预警信号/,'').trim()||'注意防范'}</div>`);
-  };
-
-  // 预警跟随定位：查 loc.province 对应省份，再按「市/区县」过滤（区县级优先，回落市级）
-  if(loc && loc.province && loc.city){
-    const provParam = String(loc.province).replace(/省$/,'');            // 「广东省」→「广东」
-    const allAlarms = await fetchAlarms(provParam);                        // 按定位省份查
-    // 1) 优先区县级：定位到区县(district)且有「市+区县气象台」
-    let pick = null;
-    if(loc.district){
-      // 真实标题格式如「广东省江门市蓬江区气象台」：市名后必有「市」字；
-      // district 本身已带尾字（蓬江区/罗湖区/万州区），故在其「前」去尾字再补可选尾字组，
-      // 兼容 vore 返回「蓬江」（无尾字）与「蓬江区」（带尾字）两种情况
-      const distBase = loc.district.replace(/[区县旗]$/,'');
-      const distTitle = loc.city + '市' + distBase + '(?:区|县|旗)?气象台';   // 「江门市蓬江区气象台」或「江门市蓬江气象台」均可命中
-      pick = allAlarms.filter(a => new RegExp(distTitle).test(a.title)).sort((a,b)=>levelRank(b.title)-levelRank(a.title))[0];
-    }
-    // 2) 回落市级：「市气象台」（如「江门市气象台」「重庆市气象台」）
-    if(!pick){
-      const cityTitle = loc.city + '市气象台';
-      pick = allAlarms.filter(a => a.title.includes(cityTitle)).sort((a,b)=>levelRank(b.title)-levelRank(a.title))[0];
-    }
-    // 3) 定位省份无预警 或 过滤无命中 → 不显示（宁缺毋错，与天气一致）
-    if(pick) renderAlarm(pick);
-  }
-
-  // ② 今日天气（独立行：IP 定位 → proxy → open-meteo）
-  const wresp = wresult && wresult.resp;
-  if(wresp && wresp.ok){
-    try{
-      const d = await wresp.json();
-      const loc = wresult.loc || {};
-      const cur = d.current || {};
-      const day = d.daily || {};
-      const tmax = day.temperature_2m_max?.[0], tmin = day.temperature_2m_min?.[0];
-      const wcode = cur.weather_code != null ? cur.weather_code : day.weather_code?.[0];
-      const wtxt = WMO[wcode] || '晴';
-      const wind = cur.wind_speed_10m != null ? Math.round(cur.wind_speed_10m) : null;
-      // 显示「市·区」且去掉区名尾部「区/县/旗」字（如 江门·蓬江 / 重庆·万州）
-      const dShort = loc.district ? loc.district.replace(/[区县旗]$/,'') : '';
-      const placeName = dShort ? (loc.city + '·' + dShort) : (loc.city || '当地');
-      let s = `<span class="ic">☀️</span><b>${placeName}今日 ${wtxt}</b>`;
-      if(tmin != null && tmax != null) s += ` · ${tmin}~${tmax}℃`;
-      if(wind != null) s += ` · 风 ${wind}km/h`;
-      lines.push(`<div class="daily-line">${s}</div>`);
-    }catch(e){}
-  }
-
-  // ③ 每日一句（固定显示）
-  if(quote) lines.push(`<div class="daily-line"><span class="ic">💬</span>${quote}</div>`);
-
   wrap.innerHTML = lines.length ? lines.join('') :
     '<div class="daily-line">⏳ 每日速览暂无数据（接口暂不可用，稍后刷新）</div>';
 }
-
 function renderVIX(p, chg){
   document.getElementById('vixNum').textContent = p.toFixed(2);
   const chgEl = document.getElementById('vixChg');
