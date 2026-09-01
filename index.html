@@ -448,15 +448,23 @@ async function loadDailyLine(){
   const wrap = document.getElementById('dailyWrap');
   const lines = [];
   // 仅保留 60s 每日新闻（2026-09-01 起：删台风/预警/天气/一言，化繁为简）
-  const SIXTY_URL = 'https://60s.viki.moe/v2/60s';
+  // 多实例轮询（2026-09-02 起）：主源 60s.viki.moe 可能限流(429)，依次尝试备用实例，谁成功用谁
+  const SIXTY_URLS = [
+    'https://60s.viki.moe/v2/60s',
+    'https://60s.crystelf.top/v2/60s',
+    'https://60s.7se.cn/v2/60s',
+    'https://60s.superjeason.qzz.io/v2/60s'
+  ];
   const fetchNews = async () => {
-    try{
-      const r = await fetch(SIXTY_URL, {cache:'no-store'});
-      if(!r.ok) return null;
-      const d = await r.json();
-      if(d && d.code === 200 && d.data && Array.isArray(d.data.news)) return d.data;
-      return null;
-    }catch(e){ return null; }
+    for(const url of SIXTY_URLS){
+      try{
+        const r = await fetch(url, {cache:'no-store'});
+        if(!r.ok) continue;                 // 失败/限流(429) → 换下一个
+        const d = await r.json();
+        if(d && d.code === 200 && d.data && Array.isArray(d.data.news)) return d.data;
+      }catch(e){ continue; }
+    }
+    return null;                            // 全部失败
   };
   const news = await fetchNews();
   if(news && news.news.length){
