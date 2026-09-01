@@ -147,6 +147,7 @@
   .news-card-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--line)}
   .news-card-head b{font-weight:700;color:var(--ink);font-size:14px}
   .news-card-head .dl-date{font-size:11px;color:var(--sub);margin-left:auto}
+  .news-card-head .dl-updating{font-style:normal;font-size:10px;color:#e6a23c;background:#fdf6ec;border:1px solid #f5ddb8;border-radius:4px;padding:0 5px;margin-left:4px;vertical-align:1px}
   .news-item{display:flex;gap:8px;font-size:12.5px;color:var(--ink);line-height:1.65;padding:5px 0;border-bottom:1px dashed var(--line)}
   .news-item:last-child{border-bottom:none;padding-bottom:2px}
   .news-item .ni-num{flex-shrink:0;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-size:10.5px;display:flex;align-items:center;justify-content:center;margin-top:3px}
@@ -460,11 +461,31 @@ async function loadDailyLine(){
   const news = await fetchNews();
   if(news && news.news.length){
     const date = news.date || '';
-    const items = news.news.slice(0, 5);          // 单卡片内显示最新 5 条
+    // —— 批次轮换（2026-09-02 起）：数据源更新则从头显示最新5条；未更新则每12h切下一批 ——
+    const BATCH_KEY = 'sixty_batch';
+    let batch = null;
+    try{ batch = JSON.parse(localStorage.getItem(BATCH_KEY)); }catch(e){ batch = null; }
+    const now = Date.now();
+    let offset = 0;
+    if(batch && batch.date === date){                // 数据源日期未变（还没更新）
+      if(now - (batch.time || 0) > 12*3600*1000){    // 距上次展示超12h → 切下一批
+        offset = (batch.offset || 0) + 5;
+      } else {
+        offset = batch.offset || 0;                  // 12h内维持当前批
+      }
+    }
+    // 边界：批次越界（无更多新闻）→ 回到第1条；不足5条按实际显示
+    if(offset >= news.news.length) offset = 0;
+    const items = news.news.slice(offset, offset + 5);
+    try{ localStorage.setItem(BATCH_KEY, JSON.stringify({date, offset, time: now})); }catch(e){}
+    // —— 卡片渲染 ——
+    // 更新中标注：数据源日期非今天（北京）时显示「更新中」小字（源每天约10点前更新当天）
+    const todayBj = new Date(Date.now()+8*3600*1000).toISOString().slice(0,10);
+    const updating = date !== todayBj;
     let card = '<div class="news-card">';
-    card += `<div class="news-card-head"><span class="ic">📰</span><b>60s 每日新闻</b><small class="dl-date">${date}</small></div>`;
+    card += `<div class="news-card-head"><span class="ic">📰</span><b>60s 每日新闻</b><small class="dl-date">${date}${updating?' <i class="dl-updating">更新中</i>':''}</small></div>`;
     items.forEach((t, i) => {
-      card += `<div class="news-item"><span class="ni-num">${i+1}</span><span class="ni-text">${esc(t)}</span></div>`;
+      card += `<div class="news-item"><span class="ni-num">${offset+i+1}</span><span class="ni-text">${esc(t)}</span></div>`;
     });
     card += '</div>';
     lines.push(card);
