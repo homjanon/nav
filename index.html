@@ -148,6 +148,8 @@
   .news-card-head b{font-weight:700;color:var(--ink);font-size:14px}
   .news-card-head .dl-date{font-size:11px;color:var(--sub);margin-left:auto}
   .news-card-head .dl-updating{font-style:normal;font-size:10px;color:#e6a23c;background:#fdf6ec;border:1px solid #f5ddb8;border-radius:4px;padding:0 5px;margin-left:4px;vertical-align:1px}
+  .news-card-head .dl-more{font-size:11px;color:var(--accent);text-decoration:none;margin-left:auto;white-space:nowrap;font-weight:600}
+  .news-card-head .dl-more:hover{opacity:.75}
   .news-item{display:flex;gap:8px;font-size:12.5px;color:var(--ink);line-height:1.65;padding:5px 0;border-bottom:1px dashed var(--line)}
   .news-item:last-child{border-bottom:none;padding-bottom:2px}
   .news-item .ni-num{flex-shrink:0;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-size:10.5px;display:flex;align-items:center;justify-content:center;margin-top:3px}
@@ -491,7 +493,7 @@ async function loadDailyLine(){
     const todayBj = new Date(Date.now()+8*3600*1000).toISOString().slice(0,10);
     const updating = date !== todayBj;
     let card = '<div class="news-card">';
-    card += `<div class="news-card-head"><span class="ic">📰</span><b>60s 每日新闻</b><small class="dl-date">${date}${updating?' <i class="dl-updating">更新中</i>':''}</small></div>`;
+    card += `<div class="news-card-head"><span class="ic">📰</span><b>60s 每日新闻</b><a class="dl-more" href="https://60s-web.hellohopo.dpdns.org" target="_blank" rel="noopener">查看全部</a><small class="dl-date">${date}${updating?' <i class="dl-updating">更新中</i>':''}</small></div>`;
     items.forEach((t, i) => {
       card += `<div class="news-item"><span class="ni-num">${offset+i+1}</span><span class="ni-text">${esc(t)}</span></div>`;
     });
