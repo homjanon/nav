@@ -139,21 +139,30 @@
   .daily-line .dl-tag{display:inline-block;font-size:10px;border-radius:4px;padding:1px 6px;margin-right:8px;vertical-align:1px;color:#fff}
   .dl-tag.red{background:#e24b4a}.dl-tag.orange{background:#f0997b}.dl-tag.yellow{background:#e6b84c}
 
-  /* 60s 每日新闻卡片（一条卡片内多条，移动端友好） */
+  /* 摸鱼日报卡片 */
   .news-card{
     background:var(--card);border:1px solid var(--line);border-radius:14px;
     padding:12px 16px 10px;margin-bottom:6px;text-align:left;
   }
-  .news-card-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  .news-card-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line)}
   .news-card-head b{font-weight:700;color:var(--ink);font-size:14px}
-  .news-card-head .dl-date{font-size:11px;color:var(--sub);margin-left:auto}
+  .news-card-head .dl-date{font-size:11px;color:var(--sub)}
   .news-card-head .dl-updating{font-style:normal;font-size:10px;color:#e6a23c;background:#fdf6ec;border:1px solid #f5ddb8;border-radius:4px;padding:0 5px;margin-left:4px;vertical-align:1px}
   .news-card-head .dl-more{font-size:11px;color:var(--accent);text-decoration:none;margin-left:auto;white-space:nowrap;font-weight:600}
   .news-card-head .dl-more:hover{opacity:.75}
-  .news-item{display:flex;gap:8px;font-size:12.5px;color:var(--ink);line-height:1.65;padding:5px 0;border-bottom:1px dashed var(--line)}
-  .news-item:last-child{border-bottom:none;padding-bottom:2px}
-  .news-item .ni-num{flex-shrink:0;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-size:10.5px;display:flex;align-items:center;justify-content:center;margin-top:3px}
-  .news-item .ni-text{flex:1}
+  .news-card-head .dl-date{margin-left:10px}
+  /* 摸鱼内容 */
+  .moyu-row{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink);line-height:1.6;padding:4px 0}
+  .moyu-row .mk{flex-shrink:0;width:34px;font-size:11px;color:var(--sub);text-align:left}
+  .moyu-progress{flex:1;display:flex;align-items:center;gap:8px}
+  .moyu-bar{flex:1;height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+  .moyu-bar i{display:block;height:100%;background:var(--accent);border-radius:3px}
+  .moyu-pct{font-size:11px;color:var(--sub);width:38px;text-align:right}
+  .moyu-quote{font-size:12.5px;color:#8a6d3b;background:#fdf8ec;border:1px solid #f0e3c0;border-radius:8px;padding:8px 12px;margin-top:8px;line-height:1.7}
+  .moyu-today{display:inline-flex;align-items:center;gap:4px;font-size:11px;border-radius:6px;padding:1px 8px}
+  .moyu-today.work{background:#eef6ff;color:#185fa5}
+  .moyu-today.weekend{background:#f0f7f0;color:#1ba784}
+  .moyu-today.holiday{background:#fef2f2;color:#c0392b}
 
   /* 数据更新时间标注 */
   .update-note{font-size:10px;color:#b3b9c0;text-align:center;margin:10px auto 0;max-width:720px;line-height:1.6}
@@ -445,58 +454,59 @@ function setDate(){
   document.getElementById('todayDate').textContent = s;
 }
 
-/* ===== 每日速览（2026-09-01 起：仅 60s 每日新闻；台风/预警/天气/一言已移除） ===== */
+/* ===== 每日速览（2026-09-01 起：摸鱼日报（2026-09-02 由 60s 新闻改）；台风/预警/天气/一言已移除） ===== */
 async function loadDailyLine(){
   const wrap = document.getElementById('dailyWrap');
   const lines = [];
-  // 仅保留 60s 每日新闻（2026-09-01 起：删台风/预警/天气/一言，化繁为简）
-  // 多实例轮询（2026-09-02 起）：主源 60s.viki.moe 可能限流(429)，依次尝试备用实例，谁成功用谁
-  const SIXTY_URLS = [
-    'https://60s.viki.moe/v2/60s',
-    'https://60s.crystelf.top/v2/60s',
-    'https://60s.7se.cn/v2/60s',
-    'https://60s.superjeason.qzz.io/v2/60s'
+  // 摸鱼日报（2026-09-02 晚起：由 60s 新闻改为摸鱼日报；多实例轮询保留）
+  const MOYU_URLS = [
+    'https://60s.viki.moe/v2/moyu',
+    'https://60s.crystelf.top/v2/moyu',
+    'https://60s.7se.cn/v2/moyu',
+    'https://60s.superjeason.qzz.io/v2/moyu'
   ];
-  const fetchNews = async () => {
-    for(const url of SIXTY_URLS){
+  const fetchMoyu = async () => {
+    for(const url of MOYU_URLS){
       try{
         const r = await fetch(url, {cache:'no-store'});
-        if(!r.ok) continue;                 // 失败/限流(429) → 换下一个
+        if(!r.ok) continue;
         const d = await r.json();
-        if(d && d.code === 200 && d.data && Array.isArray(d.data.news)) return d.data;
+        if(d && d.code === 200 && d.data) return d.data;
       }catch(e){ continue; }
     }
-    return null;                            // 全部失败
+    return null;
   };
-  const news = await fetchNews();
-  if(news && news.news.length){
-    const date = news.date || '';
-    // —— 批次轮换（2026-09-02 起）：数据源更新则从头显示最新5条；未更新则每12h切下一批 ——
-    const BATCH_KEY = 'sixty_batch';
-    let batch = null;
-    try{ batch = JSON.parse(localStorage.getItem(BATCH_KEY)); }catch(e){ batch = null; }
-    const now = Date.now();
-    let offset = 0;
-    if(batch && batch.date === date){                // 数据源日期未变（还没更新）
-      if(now - (batch.time || 0) > 12*3600*1000){    // 距上次展示超12h → 切下一批
-        offset = (batch.offset || 0) + 5;
-      } else {
-        offset = batch.offset || 0;                  // 12h内维持当前批
-      }
-    }
-    // 边界：批次越界（无更多新闻）→ 回到第1条；不足5条按实际显示
-    if(offset >= news.news.length) offset = 0;
-    const items = news.news.slice(offset, offset + 5);
-    try{ localStorage.setItem(BATCH_KEY, JSON.stringify({date, offset, time: now})); }catch(e){}
-    // —— 卡片渲染 ——
-    // 更新中标注：数据源日期非今天（北京）时显示「更新中」小字（源每天约10点前更新当天）
-    const todayBj = new Date(Date.now()+8*3600*1000).toISOString().slice(0,10);
-    const updating = date !== todayBj;
+  const moyu = await fetchMoyu();
+  if(moyu){
+    const d = moyu.date || {};
+    const today = moyu.today || {};
+    const progress = moyu.progress || {};
+    const nextHoliday = moyu.nextHoliday;
+    const nextWeekend = moyu.nextWeekend;
+    const bar = (p) => '<div class="moyu-bar"><i style="width:' + Math.max(0, Math.min(100, p||0)) + '%"></i></div>';
+    const todayCls = today.isHoliday ? 'holiday' : (today.isWeekend ? 'weekend' : 'work');
+    const todayTxt = today.isHoliday ? (today.holidayName || '假日') : (today.isWeekend ? '周末' : '工作日');
+    const lun = d.lunar || {};
+    const lunarTxt = lun.monthCN + lun.dayCN + (lun.isLeapMonth ? '（闰）' : '');
     let card = '<div class="news-card">';
-    card += `<div class="news-card-head"><span class="ic">📰</span><b>60s 每日新闻</b><a class="dl-more" href="https://60s-web.hellohopo.dpdns.org" target="_blank" rel="noopener">查看全部</a><small class="dl-date">${date}${updating?' <i class="dl-updating">更新中</i>':''}</small></div>`;
-    items.forEach((t, i) => {
-      card += `<div class="news-item"><span class="ni-num">${offset+i+1}</span><span class="ni-text">${esc(t)}</span></div>`;
-    });
+    // 头部：标题「摸鱼日报」+ 查看全部（日期左边）+ 日期（最右）
+    card += '<div class="news-card-head"><span class="ic">🐟</span><b>摸鱼日报</b>'
+      + '<a class="dl-more" href="https://60s-web.hellohopo.dpdns.org" target="_blank" rel="noopener">查看全部</a>'
+      + '<small class="dl-date">' + (d.gregorian || '') + ' 周' + String(d.weekday||'').replace('星期','') + '</small></div>';
+    // 农历 + 今日状态
+    card += '<div class="moyu-row"><span class="mk">农历</span><span>' + esc(lunarTxt) + ' · ' + esc(String(lun.yearGanZhi||'')) + '年 · 属' + esc(String(lun.zodiac||'')) + '</span>'
+      + '<span class="moyu-today ' + todayCls + '">' + todayTxt + '</span></div>';
+    // 进度：周/月/年
+    if(progress.week) card += '<div class="moyu-row"><span class="mk">本周</span><div class="moyu-progress">' + bar(progress.week.percentage) + '<span class="moyu-pct">' + (progress.week.passed||0) + '/' + (progress.week.total||0) + '天</span></div></div>';
+    if(progress.month) card += '<div class="moyu-row"><span class="mk">本月</span><div class="moyu-progress">' + bar(progress.month.percentage) + '<span class="moyu-pct">' + (progress.month.passed||0) + '/' + (progress.month.total||0) + '天</span></div></div>';
+    if(progress.year) card += '<div class="moyu-row"><span class="mk">今年</span><div class="moyu-progress">' + bar(progress.year.percentage) + '<span class="moyu-pct">' + (progress.year.passed||0) + '/' + (progress.year.total||0) + '天</span></div></div>';
+    // 倒计时
+    const hd = [];
+    if(nextHoliday && nextHoliday.name) hd.push('距<strong>' + esc(nextHoliday.name) + '</strong> ' + (nextHoliday.until!=null ? nextHoliday.until+'天' : '') + (nextHoliday.date ? '（'+nextHoliday.date+'）' : ''));
+    if(nextWeekend && nextWeekend.daysUntil != null) hd.push('距周末 ' + nextWeekend.daysUntil + '天');
+    if(hd.length) card += '<div class="moyu-row"><span class="mk">倒计时</span><span>' + hd.join(' · ') + '</span></div>';
+    // 摸鱼语录
+    if(moyu.moyuQuote) card += '<div class="moyu-quote">💬 ' + esc(moyu.moyuQuote) + '</div>';
     card += '</div>';
     lines.push(card);
   }
