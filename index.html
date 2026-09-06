@@ -159,15 +159,17 @@
   /* 摸鱼内容 */
   .moyu-row{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink);line-height:1.6;padding:4px 0}
   .moyu-row .mk{flex-shrink:0;width:34px;font-size:11px;color:var(--sub);text-align:left}
-  .moyu-progress{flex:1;display:flex;align-items:center;gap:8px}
-  .moyu-bar{flex:1;height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+  .moyu-progress{flex:1;display:flex;align-items:center;gap:8px;min-width:0}
+  .moyu-bar{flex:1 1 auto;min-width:40px;height:6px;background:var(--line);border-radius:3px;overflow:hidden}
   .moyu-bar i{display:block;height:100%;background:var(--accent);border-radius:3px}
-  .moyu-pct{font-size:11px;color:var(--sub);width:38px;text-align:right}
+  .moyu-pct{font-size:11px;color:var(--sub);flex-shrink:0;white-space:nowrap;text-align:right}
   .moyu-quote{font-size:12.5px;color:#8a6d3b;background:#fdf8ec;border:1px solid #f0e3c0;border-radius:8px;padding:8px 12px;margin-top:8px;line-height:1.7}
   .moyu-today{display:inline-flex;align-items:center;gap:4px;font-size:11px;border-radius:6px;padding:1px 8px}
   .moyu-today.work{background:#eef6ff;color:#185fa5}
   .moyu-today.weekend{background:#f0f7f0;color:#1ba784}
   .moyu-today.holiday{background:#fef2f2;color:#c0392b}
+  .moyu-chip{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;border-radius:6px;padding:1px 8px;background:#fdf3e7;color:#b26a00}
+  .moyu-chip.term{background:#eef4ff;color:#185fa5}
 
   /* 数据更新时间标注 */
   .update-note{font-size:10px;color:#b3b9c0;text-align:center;margin:10px auto 0;max-width:720px;line-height:1.6}
@@ -489,8 +491,13 @@ async function loadDailyLine(){
     const nextHoliday = moyu.nextHoliday;
     const nextWeekend = moyu.nextWeekend;
     const bar = (p) => '<div class="moyu-bar"><i style="width:' + Math.max(0, Math.min(100, p||0)) + '%"></i></div>';
-    const todayCls = today.isHoliday ? 'holiday' : (today.isWeekend ? 'weekend' : 'work');
-    const todayTxt = today.isHoliday ? (today.holidayName || '假日') : (today.isWeekend ? '周末' : '工作日');
+    // 今日状态：优先周末；holidayName 为 Sunday/Saturday 等英文时视为周末而非假日
+    const WEEKEND_EN = /^(sunday|saturday)$/i;
+    const isWeekendNow = !!today.isWeekend;
+    const holidayName = String(today.holidayName || '').trim();
+    const isHolidayNow = !!today.isHoliday && !isWeekendNow && !WEEKEND_EN.test(holidayName);
+    const todayCls = isHolidayNow ? 'holiday' : (isWeekendNow ? 'weekend' : 'work');
+    const todayTxt = isHolidayNow ? holidayName : (isWeekendNow ? '周末' : '工作日');
     const lun = d.lunar || {};
     const lunarTxt = lun.monthCN + lun.dayCN + (lun.isLeapMonth ? '（闰）' : '');
     let card = '<div class="news-card">';
@@ -498,17 +505,23 @@ async function loadDailyLine(){
     card += '<div class="news-card-head"><span class="ic">🐟</span><b>摸鱼日报</b>'
       + '<a class="dl-more" href="https://60s-web.hellohopo.dpdns.org" target="_blank" rel="noopener">查看全部</a>'
       + '<small class="dl-date">' + (d.gregorian || '') + ' 周' + String(d.weekday||'').replace('星期','') + '</small></div>';
-    // 农历 + 今日状态
-    card += '<div class="moyu-row"><span class="mk">农历</span><span>' + esc(lunarTxt) + ' · ' + esc(String(lun.yearGanZhi||'')) + '年 · 属' + esc(String(lun.zodiac||'')) + '</span>'
+    // 农历（丙午年 · 马）+ 节气/农历节日小标签 + 今日状态
+    const chips = [];
+    if(today.solarTerm) chips.push('<span class="moyu-chip term">' + esc(today.solarTerm) + '</span>');
+    if(Array.isArray(today.lunarFestivals)) today.lunarFestivals.forEach(function(f){
+      if(f) chips.push('<span class="moyu-chip">' + esc(f) + '</span>');
+    });
+    card += '<div class="moyu-row" style="flex-wrap:wrap"><span class="mk">农历</span><span>' + esc(lunarTxt) + ' · ' + esc(String(lun.yearGanZhi||'')) + '年 · ' + esc(String(lun.zodiac||'')) + '</span>'
+      + (chips.length ? chips.join('') : '')
       + '<span class="moyu-today ' + todayCls + '">' + todayTxt + '</span></div>';
     // 进度：周/月/年
     if(progress.week) card += '<div class="moyu-row"><span class="mk">本周</span><div class="moyu-progress">' + bar(progress.week.percentage) + '<span class="moyu-pct">' + (progress.week.passed||0) + '/' + (progress.week.total||0) + '天</span></div></div>';
     if(progress.month) card += '<div class="moyu-row"><span class="mk">本月</span><div class="moyu-progress">' + bar(progress.month.percentage) + '<span class="moyu-pct">' + (progress.month.passed||0) + '/' + (progress.month.total||0) + '天</span></div></div>';
     if(progress.year) card += '<div class="moyu-row"><span class="mk">今年</span><div class="moyu-progress">' + bar(progress.year.percentage) + '<span class="moyu-pct">' + (progress.year.passed||0) + '/' + (progress.year.total||0) + '天</span></div></div>';
-    // 倒计时
+    // 倒计时（周末当日不显示"距周末"）
     const hd = [];
     if(nextHoliday && nextHoliday.name) hd.push('距<strong>' + esc(nextHoliday.name) + '</strong> ' + (nextHoliday.until!=null ? nextHoliday.until+'天' : '') + (nextHoliday.date ? '（'+nextHoliday.date+'）' : ''));
-    if(nextWeekend && nextWeekend.daysUntil != null) hd.push('距周末 ' + nextWeekend.daysUntil + '天');
+    if(!isWeekendNow && nextWeekend && nextWeekend.daysUntil != null) hd.push('距周末 ' + nextWeekend.daysUntil + '天');
     if(hd.length) card += '<div class="moyu-row"><span class="mk">倒计时</span><span>' + hd.join(' · ') + '</span></div>';
     // 摸鱼语录
     if(moyu.moyuQuote) card += '<div class="moyu-quote">💬 ' + esc(moyu.moyuQuote) + '</div>';
