@@ -227,14 +227,6 @@
         <div class="qg-levels" id="qgLevels"></div>
         <div class="qg-picks-detail" id="qgPicks"></div>
         <div class="qg-picks-detail" id="qgHoldings"></div>
-        <div class="qg-sec">
-          <div class="qg-sec-name">观望 <small>watch</small></div>
-          <div class="chips" id="qgWatch"></div>
-        </div>
-        <div class="outlook" id="qgOutlook" style="display:none">
-          <b>💬 秋哥一句话</b>
-          <span id="qgOutlookText"></span>
-        </div>
       </div>
     </div>
     <div class="update-note" id="updateNote" style="display:none"></div>
@@ -450,12 +442,6 @@ async function loadQG(){
       hh += '</div>';
     }
     document.getElementById('qgHoldings').innerHTML = hh;
-    const w = d.watch||[];
-    document.getElementById('qgWatch').innerHTML = w.length?w.map(x=>'<span class="chip watch">'+esc(x)+'</span>').join(''):'<span class="chip">—</span>';
-    if(d.outlook){
-      document.getElementById('qgOutlook').style.display='block';
-      document.getElementById('qgOutlookText').textContent = d.outlook;
-    }
     qgDate = d.data_date || null;
     renderUpdateNote();
     return d;
