@@ -1,12 +1,24 @@
 {
-  "version": "20260912",
-  "updated": "2026-09-12",
+  "version": "20260928",
+  "updated": "2026-09-28",
   "note": "老张工具箱 · 模块配置单一数据源。首页 nav 与后续 Android App 共用此文件；新增模块只需在此加一条。",
   "groups": [
-    { "id": "finance", "name": "金融" },
-    { "id": "tools", "name": "工具" },
-    { "id": "study", "name": "学习" },
-    { "id": "life", "name": "生活" }
+    {
+      "id": "finance",
+      "name": "金融"
+    },
+    {
+      "id": "tools",
+      "name": "工具"
+    },
+    {
+      "id": "study",
+      "name": "学习"
+    },
+    {
+      "id": "life",
+      "name": "生活"
+    }
   ],
   "modules": [
     {
@@ -18,7 +30,11 @@
       "accent": "#0d9488",
       "group": "finance",
       "nav": false,
-      "app": { "phase": 1, "mode": "webview", "note": "一期内置新闻页（独立新闻源 news-feed）" }
+      "app": {
+        "phase": 1,
+        "mode": "webview",
+        "note": "一期内置新闻页（独立新闻源 news-feed）"
+      }
     },
     {
       "id": "portfolio",
@@ -29,7 +45,11 @@
       "accent": "#2563eb",
       "group": "finance",
       "nav": true,
-      "app": { "phase": 1, "mode": "webview", "note": "完整图文日报（网页同源）" }
+      "app": {
+        "phase": 1,
+        "mode": "webview",
+        "note": "完整图文日报（网页同源）"
+      }
     },
     {
       "id": "market-live",
@@ -40,7 +60,25 @@
       "accent": "#0ea5e9",
       "group": "finance",
       "nav": true,
-      "app": { "phase": 4, "mode": "webview" }
+      "app": {
+        "phase": 4,
+        "mode": "webview"
+      }
+    },
+    {
+      "id": "ai-radar",
+      "name": "AI 前沿雷达",
+      "desc": "大模型/Agent/Skill 动态 · 五车道精选 · 每日 08:10",
+      "url": "https://homjanon.github.io/ai-radar/",
+      "icon": "📡",
+      "accent": "#0d9488",
+      "group": "tools",
+      "nav": true,
+      "app": {
+        "phase": 4,
+        "mode": "webview",
+        "note": "五车道前沿动态（独立源 ai-radar）"
+      }
     },
     {
       "id": "inv",
@@ -51,7 +89,11 @@
       "accent": "#2563eb",
       "group": "finance",
       "nav": true,
-      "app": { "phase": 2, "mode": "webview", "note": "云同步沿用 Gitee 快照，与网页共用同一后端" }
+      "app": {
+        "phase": 2,
+        "mode": "webview",
+        "note": "云同步沿用 Gitee 快照，与网页共用同一后端"
+      }
     },
     {
       "id": "xiaoxu-fear",
@@ -62,7 +104,10 @@
       "accent": "#6366f1",
       "group": "finance",
       "nav": true,
-      "app": { "phase": 4, "mode": "webview" }
+      "app": {
+        "phase": 4,
+        "mode": "webview"
+      }
     },
     {
       "id": "cmb-tracker",
@@ -73,7 +118,10 @@
       "accent": "#e6a23c",
       "group": "finance",
       "nav": true,
-      "app": { "phase": 4, "mode": "webview" }
+      "app": {
+        "phase": 4,
+        "mode": "webview"
+      }
     },
     {
       "id": "douban-tracker",
@@ -84,7 +132,10 @@
       "accent": "#00b51d",
       "group": "finance",
       "nav": true,
-      "app": { "phase": 4, "mode": "webview" }
+      "app": {
+        "phase": 4,
+        "mode": "webview"
+      }
     },
     {
       "id": "qdii-nav-tracker",
@@ -95,7 +146,10 @@
       "accent": "#0891b2",
       "group": "finance",
       "nav": true,
-      "app": { "phase": 4, "mode": "webview" }
+      "app": {
+        "phase": 4,
+        "mode": "webview"
+      }
     },
     {
       "id": "delivery-ocr",
@@ -106,7 +160,10 @@
       "accent": "#7c3aed",
       "group": "tools",
       "nav": true,
-      "app": { "phase": 4, "mode": "webview" }
+      "app": {
+        "phase": 4,
+        "mode": "webview"
+      }
     },
     {
       "id": "blog",
@@ -117,7 +174,10 @@
       "accent": "#f59e0b",
       "group": "life",
       "nav": true,
-      "app": { "phase": 4, "mode": "webview" }
+      "app": {
+        "phase": 4,
+        "mode": "webview"
+      }
     },
     {
       "id": "jingjishi",
@@ -128,7 +188,10 @@
       "accent": "#059669",
       "group": "study",
       "nav": false,
-      "app": { "phase": 4, "mode": "webview" }
+      "app": {
+        "phase": 4,
+        "mode": "webview"
+      }
     }
   ]
 }
