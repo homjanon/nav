@@ -1,6 +1,6 @@
 {
-  "version": "20260928",
-  "updated": "2026-09-28",
+  "version": "20260930",
+  "updated": "2026-09-30",
   "note": "老张工具箱 · 模块配置单一数据源。首页 nav 与后续 Android App 共用此文件；新增模块只需在此加一条。",
   "groups": [
     {
@@ -68,7 +68,7 @@
     {
       "id": "ai-radar",
       "name": "AI 前沿雷达",
-      "desc": "大模型/Agent/Skill 动态 · 七车道 + 应用案例库 · 每日 07:30",
+      "desc": "大模型/Agent/Skill 动态 · 七车道 + 应用案例库 · 每日 08:10",
       "url": "https://ai-radar.hellohopo.dpdns.org/",
       "icon": "📡",
       "accent": "#0d9488",
