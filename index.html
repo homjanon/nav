@@ -9,7 +9,11 @@
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<link rel="manifest" href="manifest.json">
+<!-- 图标：本站不引用 manifest.json（2026-10-03 决定）。
+     原因：安卓“添加到主屏幕”在有 manifest 时会优先用 manifest 里的 PNG，
+     而本站没有 service worker、本来就不是可安装 PWA，manifest 只会把图标
+     引到那条链路上；去掉它即改走 favicon（favicon.svg），与 ai-radar 表现一致。
+     同时 favicon 位图已修为“真满幅方底”（见交付物说明）。 -->
 <title>老张胡辣汤 工具箱 · 导航</title>
 <style>
   :root{
@@ -169,6 +173,7 @@
   .moyu-today.work{background:#eef6ff;color:#185fa5}
   .moyu-today.weekend{background:#f0f7f0;color:#1ba784}
   .moyu-today.holiday{background:#fef2f2;color:#c0392b}
+  .moyu-today.makeup{background:#fdf6ec;color:#9a5b1f}
   .moyu-chip{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;border-radius:6px;padding:1px 8px;background:#fdf3e7;color:#b26a00}
   .moyu-chip.term{background:#eef4ff;color:#185fa5}
 
@@ -511,14 +516,25 @@ async function loadDailyLine(){
     const progress = moyu.progress || {};
     const nextHoliday = moyu.nextHoliday;
     const nextWeekend = moyu.nextWeekend;
+    // ⚠️ 数据源会把「普通周末」也报成 currentHoliday（实测 2026-10-17 周六：
+    //    currentHoliday={name:"Saturday",totalDays:2}）。所以不能只看字段有没有值，
+    //    必须用 isRealHoliday 把英文星期名滤掉，否则每个周末都要显示「假期中 · Saturday」。
+    const WEEKDAY_EN = /^(sunday|monday|tuesday|wednesday|thursday|friday|saturday)$/i;
+    const isRealHoliday = n => !!n && !WEEKDAY_EN.test(String(n).trim());
+    const curHoliday = isRealHoliday(moyu.currentHoliday && moyu.currentHoliday.name)
+      ? moyu.currentHoliday : null;
     const bar = (p) => '<div class="moyu-bar"><i style="width:' + Math.max(0, Math.min(100, p||0)) + '%"></i></div>';
-    // 今日状态：优先周末；holidayName 为 Sunday/Saturday 等英文时视为周末而非假日
-    const WEEKEND_EN = /^(sunday|saturday)$/i;
+    // 今日状态：法定假日 > 调休上班 > 周末 > 工作日
+    // ⚠️ 顺序不能倒：法定假日常正好落在周六周日（2026-10-03 国庆第 3 天就是周六），
+    //    原先的“周末优先”会把国庆显示成绿色的「周末」。
+    // ⚠️ holidayName 可能是数据源给的英文星期名（实测 2026-10-17 周六 = "Saturday"），
+    //    必须先排除，否则周末会被误判成假日。
     const isWeekendNow = !!today.isWeekend;
     const holidayName = String(today.holidayName || '').trim();
-    const isHolidayNow = !!today.isHoliday && !isWeekendNow && !WEEKEND_EN.test(holidayName);
-    const todayCls = isHolidayNow ? 'holiday' : (isWeekendNow ? 'weekend' : 'work');
-    const todayTxt = isHolidayNow ? holidayName : (isWeekendNow ? '周末' : '工作日');
+    const isHolidayNow = !!today.isHoliday && isRealHoliday(holidayName);
+    const isMakeupWork = !isHolidayNow && isWeekendNow && today.isWorkday === true; // 调休上班日
+    const todayCls = isHolidayNow ? 'holiday' : (isMakeupWork ? 'makeup' : (isWeekendNow ? 'weekend' : 'work'));
+    const todayTxt = isHolidayNow ? holidayName : (isMakeupWork ? '调休上班' : (isWeekendNow ? '周末' : '工作日'));
     const lun = d.lunar || {};
     const lunarTxt = lun.monthCN + lun.dayCN + (lun.isLeapMonth ? '（闰）' : '');
     let card = '<div class="news-card">';
@@ -539,10 +555,25 @@ async function loadDailyLine(){
     if(progress.week) card += '<div class="moyu-row"><span class="mk">本周</span><div class="moyu-progress">' + bar(progress.week.percentage) + '<span class="moyu-pct">' + (progress.week.passed||0) + '/' + (progress.week.total||0) + '天</span></div></div>';
     if(progress.month) card += '<div class="moyu-row"><span class="mk">本月</span><div class="moyu-progress">' + bar(progress.month.percentage) + '<span class="moyu-pct">' + (progress.month.passed||0) + '/' + (progress.month.total||0) + '天</span></div></div>';
     if(progress.year) card += '<div class="moyu-row"><span class="mk">今年</span><div class="moyu-progress">' + bar(progress.year.percentage) + '<span class="moyu-pct">' + (progress.year.passed||0) + '/' + (progress.year.total||0) + '天</span></div></div>';
-    // 倒计时（周末当日不显示"距周末"）
+    // 倒计时
+    // ⚠️ 假期期间绝不能信 nextHoliday：实测 2026-10-01 它报「国庆节 10-02」、
+    //    10-02~10-03 报「国庆节 10-05」，于是页面出现「距国庆节 2天」这种笑话。
+    //    假期中一律以 currentHoliday 为准；非假期 nextHoliday 才可靠（9/28、9/30 实测正确）。
     const hd = [];
-    if(nextHoliday && nextHoliday.name) hd.push('距<strong>' + esc(nextHoliday.name) + '</strong> ' + (nextHoliday.until!=null ? nextHoliday.until+'天' : '') + (nextHoliday.date ? '（'+nextHoliday.date+'）' : ''));
-    if(!isWeekendNow && nextWeekend && nextWeekend.daysUntil != null) hd.push('距周末 ' + nextWeekend.daysUntil + '天');
+    if(curHoliday){
+      const total = curHoliday.totalDays, day = curHoliday.dayOfHoliday;
+      let hs = '假期中 · <strong>' + esc(curHoliday.name) + '</strong>';
+      if(day != null && total != null) hs += ' 第' + day + '/' + total + '天';
+      const left = (day != null && total != null) ? total - day : curHoliday.daysRemaining;
+      if(left != null && left > 0) hs += '（还剩' + left + '天）';
+      hd.push(hs);
+    }else if(nextHoliday && nextHoliday.name
+             && (nextHoliday.until == null || nextHoliday.until > 0)
+             && nextHoliday.name !== holidayName){
+      // 双保险：until>0 挡「已经开始了却还报倒计时」；name 相同挡「今天就是该节日」
+      hd.push('距<strong>' + esc(nextHoliday.name) + '</strong> ' + (nextHoliday.until!=null ? nextHoliday.until+'天' : '') + (nextHoliday.date ? '（'+nextHoliday.date+'）' : ''));
+    }
+    if(!isWeekendNow && !curHoliday && nextWeekend && nextWeekend.daysUntil != null) hd.push('距周末 ' + nextWeekend.daysUntil + '天');
     if(hd.length) card += '<div class="moyu-row"><span class="mk">倒计时</span><span>' + hd.join(' · ') + '</span></div>';
     // 摸鱼语录
     if(moyu.moyuQuote) card += '<div class="moyu-quote">💬 ' + esc(moyu.moyuQuote) + '</div>';
