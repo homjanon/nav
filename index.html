@@ -21,6 +21,8 @@
     --line:#eceef1; --accent:#2563eb;
     --fear:#0ea5e9; --greed:#f59e0b; --neutral:#8a9099;
     --up:#e0392b; --down:#1ba784;
+    /* 区块节奏：标题→顶部双卡、顶部双卡→风向标、风向标→板块导航 三处共用同一间距 */
+    --gap-block:28px;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   body{
@@ -29,12 +31,12 @@
     font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;
     line-height:1.6;
   }
-  .header{text-align:center;margin-bottom:24px}
-  .header h1{font-size:22px;margin:0 0 6px;font-weight:800;letter-spacing:.02em}
+  .header{text-align:center;margin-bottom:var(--gap-block)}
+  .header h1{font-size:22px;margin:0 0 var(--gap-block);font-weight:800;letter-spacing:.02em}
   .header p{font-size:13px;color:var(--sub);margin:0}
 
   /* ===== 风向标区 ===== */
-  .today{margin-bottom:28px}
+  .today{margin-bottom:var(--gap-block)}
   .today-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
   .today-title{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px}
   .today-title::before{content:"";width:4px;height:16px;border-radius:2px;background:var(--accent)}
