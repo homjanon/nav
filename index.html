@@ -40,8 +40,16 @@
   .today-title::before{content:"";width:4px;height:16px;border-radius:2px;background:var(--accent)}
   .today-date{font-size:12px;color:var(--sub)}
 
-  .today-grid{display:grid;grid-template-columns:1fr 1.35fr;gap:14px}
-  @media(max-width:640px){.today-grid{grid-template-columns:1fr}}
+  /* 上行（摸鱼日报｜今日定性导语）与下行（恐惧指数+VIX｜秋哥操作）共用同一套列轨，
+     四张卡的左右竖边落在同一条线上；行内 stretch 等高。
+     auto-fit 的用意：导语拉取失败整卡隐藏时，摸鱼日报自动占满整行，不留空列 */
+  .top-row,.today-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+  .top-row>*,.today-grid>*{min-width:0}
+  /* stretch 只作用于网格项本身，摸鱼卡是 .daily-wrap 的子元素，需让它填满单元格才能与导语卡等高 */
+  .daily-wrap{display:flex;flex-direction:column}
+  .daily-wrap .news-card{flex:1;margin-bottom:0}
+  /* 卡片内部改为纵向弹性布局，供下方 .vix-wrap 的 margin-top:auto 吸收富余量 */
+  .t-card{display:flex;flex-direction:column}
 
   .t-card{background:var(--card);border-radius:16px;padding:18px;border:1px solid var(--line);
     box-shadow:0 1px 3px rgba(0,0,0,.05)}
@@ -59,7 +67,8 @@
   .xxfi-advice{font-size:12px;color:var(--sub);border-top:1px solid var(--line);padding-top:10px}
 
   /* VIX 迷你区块（填充小旭卡留白） */
-  .vix-wrap{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+  /* VIX 区块钉到卡底：margin-top:auto 吸收等高产生的富余量，无富余时靠自身 border-top + padding 分隔 */
+  .vix-wrap{margin-top:auto;border-top:1px solid var(--line);padding-top:12px}
   .vix-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
   .vix-label{font-size:12px;font-weight:700;display:flex;align-items:center;gap:5px}
   .vix-label small{color:var(--sub);font-weight:400}
@@ -98,10 +107,11 @@
     border-radius:10px;padding:10px 12px;font-size:12px;color:#633806;line-height:1.7}
   .outlook b{display:block;font-size:12px;margin-bottom:4px}
 
-  /* 今日定性导语横条 */
-  .lede-bar{background:linear-gradient(90deg,#eef4ff,#f6f9ff);border:1px solid #d5e2f8;
-    border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:#0c447c;line-height:1.7}
-  .lede-bar b{display:block;font-size:12px;margin-bottom:4px;color:#185fa5}
+  /* 今日定性导语（与摸鱼日报同排的卡片，尺寸与 .news-card 对齐） */
+  .lede-card{background:linear-gradient(90deg,#eef4ff,#f6f9ff);border:1px solid #d5e2f8;
+    border-radius:14px;padding:12px 16px;box-shadow:0 1px 3px rgba(0,0,0,.05);
+    font-size:13px;color:#0c447c;line-height:1.7;text-align:left}
+  .lede-card b{display:block;font-size:14px;font-weight:700;margin-bottom:6px;color:#185fa5}
 
   /* 加载失败占位 */
   .err-box{font-size:12px;color:var(--sub);padding:20px;text-align:center}
@@ -127,8 +137,7 @@
   .foot{color:var(--sub);font-size:11px;text-align:center;margin-top:28px}
   .loading{color:var(--sub);font-size:12px;padding:8px 0}
 
-  /* 每日速览（分层） */
-  .daily-wrap{max-width:720px;margin:0 auto}
+  /* 每日速览（分层）。列宽与等高由 .top-row 统一控制（见「风向标区」） */
   .daily-line{
     display:block;font-size:13px;color:var(--sub);line-height:1.7;
     background:var(--card);border:1px solid var(--line);border-radius:12px;
@@ -184,7 +193,14 @@
 <body>
   <div class="header">
     <h1>🏠 老张胡辣汤 工具箱</h1>
-    <div class="daily-wrap" id="dailyWrap"></div>
+    <div class="top-row">
+      <div class="daily-wrap" id="dailyWrap"></div>
+      <!-- 今日定性导语：从风向标移来与摸鱼日报并排。拉取失败时整卡隐藏，auto-fit 会让摸鱼日报自动回到整行 -->
+      <div class="lede-card" id="ledeBar" style="display:none">
+        <b>📰 今日定性导语</b>
+        <span id="ledeText"></span>
+      </div>
+    </div>
   </div>
 
   <!-- 风向标 -->
@@ -192,10 +208,6 @@
     <div class="today-head">
       <div class="today-title">风向标</div>
       <div class="today-date" id="todayDate">加载中…</div>
-    </div>
-    <div class="lede-bar" id="ledeBar" style="display:none">
-      <b>📰 今日定性导语</b>
-      <span id="ledeText"></span>
     </div>
     <div class="today-grid">
       <!-- 小旭恐惧指数 -->
