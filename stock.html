@@ -156,10 +156,24 @@ const cls = v => v == null ? 'flat' : v > 0 ? 'up' : v < 0 ? 'down' : 'flat';
 const code2tx = c => (c[0] === '6' || c[0] === '5' || c[0] === '9' || c[0] === '8' ? 'sh' : 'sz') + c;
 
 /* ---------- 实时价（可选，失败不影响页面） ---------- */
+/* 缓存 key 必须按北京日，不能用 toISOString 的 UTC 日 —— 否则北京时间 00:00–08:00
+   之间刷新会把 key 写成前一天（2026-10-13 实测踩过）。与 nav 首页 setDate() 同一算法。 */
+const bjToday = () => new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+/* 行情时刻是否就是北京今天：不是的话不能叫"实时价"（盘前/周末拿到的是上一交易日收盘） */
+const liveIsToday = at => String(at || '').slice(0, 8) === bjToday().replace(/-/g, '');
+/* 腾讯回传的行情时刻 20261012161435 → 2026.10.12 16:14（保留到分钟） */
+function fmtAt(at){
+  const s = String(at || '').replace(/\D/g, '');
+  if (s.length < 12) return at || '';
+  return `${s.slice(0, 4)}.${s.slice(4, 6)}.${s.slice(6, 8)} ${s.slice(8, 10)}:${s.slice(10, 12)}`;
+}
 function liveGet(code){
-  const k = LIVE_KEY + code + '.' + new Date().toISOString().slice(0,10);
+  const k = LIVE_KEY + code + '.' + bjToday();
   try{ const raw = localStorage.getItem(k); if(!raw) return null;
-       const o = JSON.parse(raw); return (Date.now() - o.at < LIVE_TTL) ? o : null; }catch(e){ return null; }
+       const o = JSON.parse(raw);
+       /* 必须比 at_ts（本机写入时刻）。早先比的是 o.at —— 那是腾讯的行情时刻字符串
+          "20261012161435"，换算后比当前时间戳大一个数量级，差值恒为负 → TTL 永不生效。 */
+       return (Date.now() - (o.at_ts || 0) < LIVE_TTL) ? o : null; }catch(e){ return null; }
 }
 async function liveFetch(codes){
   const url = 'https://qt.gtimg.cn/q=' + codes.map(code2tx).join(',');
@@ -176,7 +190,7 @@ async function liveFetch(codes){
     if(f.length < 47) continue;
     out[f[2]] = {price:+f[3], chg_pct:+f[32], at:(f[30]||'').slice(0,14)};
   }
-  const today = new Date().toISOString().slice(0,10);
+  const today = bjToday();
   for(const c in out){
     try{ localStorage.setItem(LIVE_KEY + c + '.' + today, JSON.stringify({...out[c], at_ts:Date.now()})); }catch(e){}
   }
@@ -336,7 +350,8 @@ function render(s){
         ${s.action ? `<div class="note" style="margin-top:6px">${esc(s.action)}</div>` : ''}</div>
       <div class="hero-px"><div class="p ${cls(chg)}">${fmt(price)}</div>
         <div class="c ${cls(chg)}">${pct(chg)} ${chg != null ? (chg > 0 ? '↑' : chg < 0 ? '↓' : '→') : ''}</div>
-        ${live ? `<div class="live">实时价 · ${esc(live.at || '')} · 10 分钟内不再请求</div>` : ''}</div>
+        ${live ? `<div class="live">${liveIsToday(live.at) ? '实时价 · ' + esc(fmtAt(live.at)) + ' · 10 分钟内不再请求'
+                 : '非当日行情 · 腾讯回传 ' + esc(fmtAt(live.at)) + '（盘前/休市拿到的是上一交易日收盘）'}</div>` : ''}</div>
     </div>
     <div class="hero-meta">
       <span class="m">总市值 <b>${fmt(q.cap_yi)}亿</b></span>
