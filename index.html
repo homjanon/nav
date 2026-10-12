@@ -102,6 +102,8 @@
   .qg-pick-row{display:flex;align-items:center;justify-content:space-between;font-size:12px;
     background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:7px 10px;margin-bottom:6px}
   .qg-pick-row .nm{font-weight:600}
+  .qg-pick-row a.nm{color:inherit;text-decoration:none;border-bottom:1px dashed #c9d6ea}
+  .qg-pick-row a.nm:hover{color:var(--accent);border-bottom-color:var(--accent)}
   .qg-pick-row .act{color:#185fa5;font-size:11px}
   .qg-pick-row .pos{color:var(--sub);font-size:11px}
 
@@ -452,7 +454,7 @@ async function loadQG(){
     let ph = '';
     if(pd.length){
       ph += '<div class="qg-sec"><div class="qg-sec-name">精选标的 <small>picks</small></div>';
-      ph += pd.map(p=>'<div class="qg-pick-row"><span class="nm">'+esc(p.name)+'</span><span class="act">'+esc(p.action||'')+'</span><span class="pos">'+esc(p.position||'')+'</span></div>').join('');
+      ph += pd.map(p=>'<div class="qg-pick-row"><a class="nm" href="stock.html?code='+esc(p.code)+'">'+esc(p.name)+'</a><span class="act">'+esc(p.action||'')+'</span><span class="pos">'+esc(p.position||'')+'</span></div>').join('');
       ph += '</div>';
     }else if((d.picks_name||[]).length){
       ph += '<div class="qg-sec"><div class="qg-sec-name">精选标的 <small>picks</small></div><div class="chips">'+
@@ -464,7 +466,7 @@ async function loadQG(){
     let hh = '';
     if(hd.length){
       hh += '<div class="qg-sec"><div class="qg-sec-name">持仓管理 <small>holdings</small></div>';
-      hh += hd.map(p=>'<div class="qg-pick-row"><span class="nm">'+esc(p.name)+'</span><span class="act">'+esc(p.action||'')+'</span></div>').join('');  // 公开页不展示仓位数量
+      hh += hd.map(p=>'<div class="qg-pick-row"><a class="nm" href="stock.html?code='+esc(p.code)+'">'+esc(p.name)+'</a><span class="act">'+esc(p.action||'')+'</span></div>').join('');  // 公开页不展示仓位数量
       hh += '</div>';
     }
     document.getElementById('qgHoldings').innerHTML = hh;
