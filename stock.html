@@ -40,6 +40,7 @@
   .hero-top{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
   .hero-name{font-size:22px;font-weight:800}
   .hero-code{font-size:12px;color:var(--sub);font-family:ui-monospace,Consolas,monospace;margin-left:8px}
+  .hero-biz{font-size:12px;color:var(--sub);line-height:1.6;margin-top:6px;max-width:560px}
   .hero-role{font-size:11px;padding:2px 8px;border-radius:6px;margin-left:8px;vertical-align:2px}
   .r-pick{background:#eef4ff;color:var(--pick)} .r-hold{background:#e8f7fd;color:#0369a1}
   .hero-px{text-align:right}
@@ -71,9 +72,7 @@
   .zone-band{position:absolute;top:-4px;bottom:-4px;background:rgba(37,99,235,.18);
     border-left:1px solid var(--pick);border-right:1px solid var(--pick)}
   .zone-stop{position:absolute;top:-4px;bottom:-4px;border-left:2px dashed var(--up)}
-  .zone-now{position:absolute;top:-10px;bottom:-10px;width:2px;background:var(--ink);border-radius:1px}
-  .zone-now::after{content:"";position:absolute;top:-5px;left:-3px;width:8px;height:8px;border-radius:50%;
-    background:var(--ink);border:2px solid #fff;box-shadow:0 0 0 1px var(--ink)}
+  .zone-now{position:absolute;top:-12px;bottom:-12px;width:2px;background:var(--ink);border-radius:1px}
   .zone-lab{position:absolute;font-size:10px;color:var(--ink);font-weight:700;white-space:nowrap;
     transform:translateX(-50%);top:-26px}
   .zone-legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:12px;font-size:11.5px;color:var(--sub)}
@@ -141,12 +140,6 @@
 const RAW_DATA = 'https://raw.githubusercontent.com/homjanon/xiaoxu-fear/main/output/stock_cards.json';
 const LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
 const DATA_URL = new URLSearchParams(location.search).get('data') || (LOCAL ? 'output/stock_cards.json' : RAW_DATA);
-const PROXIES = [
-  u => 'https://proxy.hellohopo.dpdns.org/?url=' + encodeURIComponent(u),
-  u => u
-];
-const LIVE_KEY = 'qg.stock.live.';
-const LIVE_TTL = 10 * 60 * 1000;
 let DOC = null, CUR = null;
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -155,11 +148,10 @@ const pct = v => v == null || isNaN(v) ? '—' : (v > 0 ? '+' : '') + Number(v).
 const cls = v => v == null ? 'flat' : v > 0 ? 'up' : v < 0 ? 'down' : 'flat';
 const code2tx = c => (c[0] === '6' || c[0] === '5' || c[0] === '9' || c[0] === '8' ? 'sh' : 'sz') + c;
 
-/* ---------- 实时价（可选，失败不影响页面） ---------- */
-/* 缓存 key 必须按北京日，不能用 toISOString 的 UTC 日 —— 否则北京时间 00:00–08:00
-   之间刷新会把 key 写成前一天（2026-10-13 实测踩过）。与 nav 首页 setDate() 同一算法。 */
-const bjToday = () => new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+const LIVE_KEY = 'qg.stock.live.';
+/* 缓存 key 用北京日无意义了（不设过期），只按标的存一份 */
 /* 行情时刻是否就是北京今天：不是的话不能叫"实时价"（盘前/周末拿到的是上一交易日收盘） */
+const bjToday = () => new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
 const liveIsToday = at => String(at || '').slice(0, 8) === bjToday().replace(/-/g, '');
 /* 腾讯回传的行情时刻 20261012161435 → 2026.10.12 16:14（保留到分钟） */
 function fmtAt(at){
@@ -167,22 +159,18 @@ function fmtAt(at){
   if (s.length < 12) return at || '';
   return `${s.slice(0, 4)}.${s.slice(4, 6)}.${s.slice(6, 8)} ${s.slice(8, 10)}:${s.slice(10, 12)}`;
 }
+/* 缓存不设过期：查到就存，一直用到下一次手动刷新为止（用户 2026-10-13 定的口径） */
 function liveGet(code){
-  const k = LIVE_KEY + code + '.' + bjToday();
-  try{ const raw = localStorage.getItem(k); if(!raw) return null;
-       const o = JSON.parse(raw);
-       /* 必须比 at_ts（本机写入时刻）。早先比的是 o.at —— 那是腾讯的行情时刻字符串
-          "20261012161435"，换算后比当前时间戳大一个数量级，差值恒为负 → TTL 永不生效。 */
-       return (Date.now() - (o.at_ts || 0) < LIVE_TTL) ? o : null; }catch(e){ return null; }
+  try{ const raw = localStorage.getItem(LIVE_KEY + code); return raw ? JSON.parse(raw) : null; }
+  catch(e){ return null; }
 }
 async function liveFetch(codes){
+  /* 实时价只走腾讯直连（qt.gtimg.cn 实测自带 Access-Control-Allow-Origin: *），不经 CORS 代理 */
   const url = 'https://qt.gtimg.cn/q=' + codes.map(code2tx).join(',');
-  let text = '';
-  for(const p of PROXIES){
-    try{ const r = await fetch(p(url), {cache:'no-store'}); if(!r.ok) continue;
-         text = new TextDecoder('gbk').decode(await r.arrayBuffer()); if(text.includes('~')) break; }catch(e){}
-  }
-  if(!text.includes('~')) throw new Error('代理与直连均失败');
+  const r = await fetch(url, {cache:'no-store'});
+  if(!r.ok) throw new Error('HTTP ' + r.status);
+  const text = new TextDecoder('gbk').decode(await r.arrayBuffer());
+  if(!text.includes('~')) throw new Error('腾讯返回异常');
   const out = {};
   for(const line of text.split('\n')){
     if(!line.includes('"')) continue;
@@ -190,9 +178,8 @@ async function liveFetch(codes){
     if(f.length < 47) continue;
     out[f[2]] = {price:+f[3], chg_pct:+f[32], at:(f[30]||'').slice(0,14)};
   }
-  const today = bjToday();
   for(const c in out){
-    try{ localStorage.setItem(LIVE_KEY + c + '.' + today, JSON.stringify({...out[c], at_ts:Date.now()})); }catch(e){}
+    try{ localStorage.setItem(LIVE_KEY + c, JSON.stringify(out[c])); }catch(e){}
   }
   return out;
 }
@@ -216,8 +203,11 @@ function boardsRow(s){
   return h + '</div>';
 }
 
-function zoneBar(s){
-  const price = s.quote.price, zone = (s.buy_zone || '').match(/([\d.]+)\s*[-~]\s*([\d.]+)/);
+function zoneBar(s, livePrice){
+  /* 买区判断必须跟着最新价走：手动刷新过就用实时价，否则用日更快照价。
+     2026-10-13 用户实测发现它一直用快照价 → 刷新后"是否进买区"不跟着变。 */
+  const price = livePrice != null ? livePrice : s.quote.price;
+  const zone = (s.buy_zone || '').match(/([\d.]+)\s*[-~]\s*([\d.]+)/);
   const stop = s.stop_loss;
   if(!price) return '';
   const pts = [price];
@@ -347,10 +337,11 @@ function render(s){
     <div class="hero-top">
       <div><span class="hero-name">${esc(s.name)}</span><span class="hero-code">${esc(s.code)}</span>
         <span class="hero-role ${s.role === 'pick' ? 'r-pick' : 'r-hold'}">${s.role === 'pick' ? '今日精选' : '当前持仓'}</span>
-        ${s.action ? `<div class="note" style="margin-top:6px">${esc(s.action)}</div>` : ''}</div>
+        ${s.profile ? `<div class="hero-biz">${esc(s.profile)}</div>` : ''}
+        ${s.action ? `<div class="note" style="margin-top:5px">${esc(s.action)}</div>` : ''}</div>
       <div class="hero-px"><div class="p ${cls(chg)}">${fmt(price)}</div>
         <div class="c ${cls(chg)}">${pct(chg)} ${chg != null ? (chg > 0 ? '↑' : chg < 0 ? '↓' : '→') : ''}</div>
-        ${live ? `<div class="live">${liveIsToday(live.at) ? '实时价 · ' + esc(fmtAt(live.at)) + ' · 10 分钟内不再请求'
+        ${live ? `<div class="live">${liveIsToday(live.at) ? '实时价 · ' + esc(fmtAt(live.at))
                  : '非当日行情 · 腾讯回传 ' + esc(fmtAt(live.at)) + '（盘前/休市拿到的是上一交易日收盘）'}</div>` : ''}</div>
     </div>
     <div class="hero-meta">
@@ -364,15 +355,16 @@ function render(s){
       <button class="btn" id="btnLive" style="margin-left:auto">刷新价格</button>
     </div>
     ${boardsRow(s)}
-    ${s.buy_zone || s.stop_loss != null ? `<div style="margin-top:16px"><div class="note" style="margin-bottom:2px">回踩买区与止损</div>${zoneBar(s)}</div>` : ''}
+    ${s.buy_zone || s.stop_loss != null ? `<div style="margin-top:16px"><div class="note" style="margin-bottom:2px">回踩买区与止损</div>${zoneBar(s, price)}</div>` : ''}
   </div>
 
-  <div class="card"><h2>关键财务 <small>报告期 ${esc(f.period || '—')}</small></h2>
+  <div class="card"><h2>关键财务 <small>年报 ${esc(f.period || '—')}</small></h2>
     <div class="kpis">${kpi('营业总收入', f.revenue_yi, '亿', f.revenue_yoy)}
       ${kpi('归母净利润', f.np_yi, '亿', f.np_yoy)}
       ${kpi('销售毛利率', f.gross_margin, '%', null)}
       ${kpi('净资产收益率', f.roe, '%', null)}</div>
     ${f.eps != null ? `<div class="note" style="margin-top:10px">基本每股收益 ${fmt(f.eps)} 元</div>` : ''}
+    ${f.interim ? `<div class="note" style="margin-top:4px">最新中期 ${esc(f.interim.period)}：营收 ${fmt(f.interim.revenue_yi)} 亿 · 归母 ${fmt(f.interim.np_yi)} 亿 · ROE ${fmt(f.interim.roe)}%　<span style="opacity:.75">（${esc(f.interim.note || '')}）</span></div>` : ''}
   </div>
 
   <div class="two">
@@ -381,7 +373,6 @@ function render(s){
   </div>
 
   <div class="card"><h2>前十大股东</h2>${holders(s)}</div>
-  ${s.profile ? `<div class="card"><h2>公司主营</h2><div class="note">${esc(s.profile)}</div></div>` : ''}
   ${s.missing && s.missing.length ? `<div class="warn">本期缺失字段：${esc(s.missing.join('、'))}（显示为 —，未用 0 填充）</div>` : ''}`;
 }
 
@@ -427,7 +418,7 @@ async function loadDoc(){
      顺序固定为 代理 → 直连 → jsdelivr —— jsdelivr 有 12h 缓存，只能兜底，不得提前。 */
   const cdn = u => ['https://proxy.hellohopo.dpdns.org/?url=' + encodeURIComponent(u), u,
                    'https://cdn.jsdelivr.net/gh/homjanon/xiaoxu-fear@main/output/stock_cards.json'];
-  const urls = DATA_URL === RAW_DATA ? [DATA_URL, ...cdn(DATA_URL).slice(1)] : [DATA_URL, ...cdn(RAW_DATA)];
+  const urls = LOCAL ? [DATA_URL, ...cdn(RAW_DATA)] : cdn(RAW_DATA);
   let last = new Error('无可用数据地址');
   for(const u of urls){
     try{ const r = await fetch(u, {cache:'no-store'}); if(r.ok) return await r.json(); last = new Error('HTTP ' + r.status); }
@@ -447,7 +438,7 @@ async function boot(){
   if(want) CUR = want;
   const idx = DOC.index || {};
   document.getElementById('stamp').innerHTML =
-    `行情日 <b>${esc(DOC.price_asof || '—')}</b><br>财报期 <b>${esc((DOC.stocks[0] || {}).fin?.period || '—')}</b> · 生成 <b>${esc((DOC.generated_at || '').slice(5, 16).replace('T', ' '))}</b>`;
+    `财报期 <b>${esc((DOC.stocks[0] || {}).fin?.period || '—')}</b> · 生成 <b>${esc((DOC.generated_at || '').slice(5, 16).replace('T', ' '))}</b>`;
   if(idx.close != null){
     document.getElementById('warn').innerHTML =
       `<div class="warn">${esc(DOC.report_summary || '')}　<span class="flat">${esc(idx.name || '')} ${fmt(idx.close)}（${pct(idx.change_pct)}）</span></div>`;
