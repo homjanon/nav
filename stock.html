@@ -438,7 +438,7 @@ async function boot(){
   if(want) CUR = want;
   const idx = DOC.index || {};
   document.getElementById('stamp').innerHTML =
-    `财报期 <b>${esc((DOC.stocks[0] || {}).fin?.period || '—')}</b> · 生成 <b>${esc((DOC.generated_at || '').slice(5, 16).replace('T', ' '))}</b>`;
+    `· 生成 <b>${esc((DOC.generated_at || '').slice(5, 16).replace('T', ' '))}</b>`;
   if(idx.close != null){
     document.getElementById('warn').innerHTML =
       `<div class="warn">${esc((DOC.report_summary || '').replace(/\*\*/g, ''))}　<span class="flat">${esc(idx.name || '')} ${fmt(idx.close)}（${pct(idx.change_pct)}）</span></div>`;
