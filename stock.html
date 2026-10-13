@@ -389,7 +389,7 @@ function renderCmp(){
         <td>${fmt(q.pe_ttm)}</td><td>${fmt(q.pb)}</td><td>${fmt(q.cap_yi)}</td>
         <td>${fmt(f.revenue_yi)}</td><td class="${cls(f.revenue_yoy)}">${pct(f.revenue_yoy)}</td>
         <td>${fmt(f.gross_margin)}</td><td>${fmt(f.roe)}</td>
-        <td style="text-align:left;color:var(--sub);font-size:11px">${esc((s.action || s.buy_zone || '').slice(0, 16))}</td></tr>`;
+        <td style="text-align:left;color:var(--sub);font-size:11px" title="${esc(s.action || s.buy_zone || '')}">${esc((s.action || s.buy_zone || '').slice(0, 16))}</td></tr>`;
     }).join('')}</tbody></table></div>`;
   document.querySelectorAll('#cmp tbody tr').forEach(tr =>
     tr.onclick = () => { CUR = tr.dataset.c; history.replaceState(null, '', '?code=' + CUR); paint(); });
@@ -441,7 +441,7 @@ async function boot(){
     `财报期 <b>${esc((DOC.stocks[0] || {}).fin?.period || '—')}</b> · 生成 <b>${esc((DOC.generated_at || '').slice(5, 16).replace('T', ' '))}</b>`;
   if(idx.close != null){
     document.getElementById('warn').innerHTML =
-      `<div class="warn">${esc(DOC.report_summary || '')}　<span class="flat">${esc(idx.name || '')} ${fmt(idx.close)}（${pct(idx.change_pct)}）</span></div>`;
+      `<div class="warn">${esc((DOC.report_summary || '').replace(/\*\*/g, ''))}　<span class="flat">${esc(idx.name || '')} ${fmt(idx.close)}（${pct(idx.change_pct)}）</span></div>`;
   }
   renderCmp();
   paint();
