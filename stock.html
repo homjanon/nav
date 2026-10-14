@@ -132,7 +132,6 @@
 <div id="warn"></div>
 <div class="chips" id="chips"></div>
 <div id="app"><div class="card"><div class="skel">正在读取 stock_cards.json …</div></div></div>
-<div class="card" id="cmpCard"><h2>本组对比总览 <small id="cmpNote"></small></h2><div id="cmp"></div></div>
 <div class="foot" id="foot"></div>
 <div class="tip" id="tip"></div>
 
@@ -376,25 +375,6 @@ function render(s){
   ${s.missing && s.missing.length ? `<div class="warn">本期缺失字段：${esc(s.missing.join('、'))}（显示为 —，未用 0 填充）</div>` : ''}`;
 }
 
-function renderCmp(){
-  const rows = DOC.stocks;
-  document.getElementById('cmpNote').textContent = `${rows.length} 只 · 同一时点`;
-  document.getElementById('cmp').innerHTML = `<div class="tw"><table><thead><tr>
-      <th>标的</th><th>现价</th><th>涨跌</th><th>PE</th><th>PB</th><th>总市值</th>
-      <th>营收(亿)</th><th>同比</th><th>毛利率</th><th>ROE</th><th>动作</th></tr></thead><tbody>
-    ${rows.map(s => { const q = s.quote || {}, f = s.fin || {};
-      return `<tr data-c="${esc(s.code)}" style="cursor:pointer">
-        <td class="nm"><b>${esc(s.name)}</b><span style="color:var(--sub);font-size:10px"> ${esc(s.code)}</span></td>
-        <td>${fmt(q.price)}</td><td class="${cls(q.chg_pct)}">${pct(q.chg_pct)}</td>
-        <td>${fmt(q.pe_ttm)}</td><td>${fmt(q.pb)}</td><td>${fmt(q.cap_yi)}</td>
-        <td>${fmt(f.revenue_yi)}</td><td class="${cls(f.revenue_yoy)}">${pct(f.revenue_yoy)}</td>
-        <td>${fmt(f.gross_margin)}</td><td>${fmt(f.roe)}</td>
-        <td style="text-align:left;color:var(--sub);font-size:11px" title="${esc(s.action || s.buy_zone || '')}">${esc((s.action || s.buy_zone || '').slice(0, 16))}</td></tr>`;
-    }).join('')}</tbody></table></div>`;
-  document.querySelectorAll('#cmp tbody tr').forEach(tr =>
-    tr.onclick = () => { CUR = tr.dataset.c; history.replaceState(null, '', '?code=' + CUR); paint(); });
-}
-
 function paint(){
   const s = DOC.stocks.find(x => x.code === CUR) || DOC.stocks[0];
   if(!s){ document.getElementById('app').innerHTML = '<div class="card"><div class="skel">报告里没有标的。</div></div>'; return; }
@@ -443,7 +423,6 @@ async function boot(){
     document.getElementById('warn').innerHTML =
       `<div class="warn">${esc((DOC.report_summary || '').replace(/\*\*/g, ''))}　<span class="flat">${esc(idx.name || '')} ${fmt(idx.close)}（${pct(idx.change_pct)}）</span></div>`;
   }
-  renderCmp();
   paint();
   document.getElementById('foot').innerHTML =
     `${esc(DOC.data_note || '')}<br>数据来源：腾讯行情 · 东财财务/主营/股东 · 巨潮简介（星耀数智可选）· 标的清单来自秋哥操作日报<br>
